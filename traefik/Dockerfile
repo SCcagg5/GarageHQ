@@ -33,5 +33,5 @@ EXPOSE 80 443
 ENTRYPOINT ["/bin/sh", "/bin/entrypoint.sh"]
 HEALTHCHECK --interval=10s --timeout=1s \
             --start-period=0s --start-interval=5s \
-            --retries=1 \
+            --retries=3 \
             CMD ["/bin/sh", "/bin/healthcheck.sh"]

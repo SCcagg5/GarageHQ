@@ -1,11 +1,18 @@
+global:
+  sendAnonymousUsage: false
+  checkNewVersion: false
+
 entryPoints:
   web:
     address: ":80"
+
   websecure:
     address: ":443"
+    http3: {}
 
 log:
   level: INFO
+  format: json
 
 accessLog: {}
 

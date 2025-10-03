@@ -183,7 +183,7 @@ gen_if_empty() {
 ############################################
 gen_b64() { openssl rand -base64 32 | tr -d '\n'; }
 gen_hex() { openssl rand -hex 32; }
-gen_keyid() { printf "GK1%s" "$(openssl rand -hex 12)"; }
+gen_keyid() { printf "GK%s" "$(openssl rand -hex 12)"; }
 gen_basic_user() { printf "admin%s" "$(openssl rand -hex 3)"; }
 gen_basic_pass() {
   # URL-safe base64, 32 characters, stripped of '/', '+', '=' and underscores

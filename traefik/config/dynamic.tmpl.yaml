@@ -1,18 +1,19 @@
 http:
   routers:
-    ############################################
-    # Global HTTP -> HTTPS (catch-all)
-    # Blocks any direct HTTP access (incl. /garage-ui on 8080)
-    ############################################
     http-redirect-all:
       entryPoints: ["web"]
       rule: "PathPrefix(`/`)"
       service: "noop@internal"
       middlewares: ["https-only"]
 
-    ############################################
-    # Garage UI (HTTPS only)
-    ############################################
+    root-to-garage-ui:
+      entryPoints: ["websecure"]
+      rule: "Path(`/`)"
+      service: garage-ui-svc
+      middlewares: ["root-redirect"]
+      priority: 1000
+      tls: {}
+
     garage-ui-https:
       entryPoints: ["websecure"]
       rule: "PathPrefix(`/garage-ui`)"
@@ -20,9 +21,6 @@ http:
       middlewares: ["garage-ui-add-slash", "secured-basicauth"]
       tls: {}
 
-    ############################################
-    # Traefik dashboard (HTTPS only)
-    ############################################
     traefik-dashboard-https:
       entryPoints: ["websecure"]
       rule: "PathPrefix(`/traefik`)"
@@ -30,9 +28,6 @@ http:
       middlewares: ["traefik-add-slash", "traefik-strip", "secured-basicauth"]
       tls: {}
 
-    ############################################
-    # Traefik API for dashboard XHRs (HTTPS only)
-    ############################################
     traefik-api-scoped-https:
       entryPoints: ["websecure"]
       rule: "PathPrefix(`/api`) && HeaderRegexp(`Referer`, `.*/traefik/.*`)"
@@ -40,9 +35,6 @@ http:
       middlewares: ["secured-basicauth"]
       tls: {}
 
-    ############################################
-    # Garage S3 API (HTTPS mTLS)
-    ############################################
     garage-s3-router:
       entryPoints: ["websecure"]
       rule: "PathPrefix(`/garage`)"
@@ -52,9 +44,6 @@ http:
         options: "mtls@file"
 
   middlewares:
-    ############################################
-    # Trailing slashes
-    ############################################
     garage-ui-add-slash:
       redirectRegex:
         regex: "^/garage-ui$"
@@ -67,52 +56,45 @@ http:
         replacement: "/traefik/"
         permanent: false
 
-    ############################################
-    # StripPrefix
-    ############################################
+    root-redirect:
+      redirectRegex:
+        regex: "^/*$"
+        replacement: "/garage-ui/"
+        permanent: true
+
     traefik-strip:
       stripPrefix:
         prefixes: ["/traefik"]
+
     garage-strip:
       stripPrefix:
         prefixes: ["/garage"]
 
-    ############################################
-    # Force HTTPS (port 443)
-    ############################################
     https-only:
       redirectScheme:
         scheme: https
         port: "${HTTPS_PUBLIC_PORT}"
         permanent: false
 
-    ############################################
-    # Basic Auth via usersFile (generated at startup)
-    ############################################
     secured-basicauth:
       basicAuth:
         usersFile: "/etc/traefik/htpasswd"
 
   services:
-    ############################################
-    # Services
-    ############################################
     garage-ui-svc:
       loadBalancer:
         servers:
           - url: "http://garage-ui:3909"
+
     garage-s3-svc:
       loadBalancer:
         servers:
           - url: "http://garage:3900"
 
-############################################
-# TLS: certs + mTLS options (top-level)
-############################################
 tls:
   certificates:
     - certFile: "/etc/traefik/certs/server/server.crt"
-      keyFile:  "/etc/traefik/certs/server/server.key"
+      keyFile: "/etc/traefik/certs/server/server.key"
   options:
     mtls:
       clientAuth:

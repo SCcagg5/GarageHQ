@@ -42,7 +42,7 @@ render_config_from_env() {
     cat > /etc/garage.toml <<EOF
 metadata_dir = "/var/lib/garage/meta"
 data_dir = "/var/lib/garage/data"
-db_engine = "lmdb"
+db_engine = "sqlite"
 
 replication_factor = ${REPLICATION_FACTOR}
 use_local_tz = ${USE_LOCAL_TZ}
