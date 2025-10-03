@@ -1,0 +1,21 @@
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+log:
+  level: INFO
+
+accessLog: {}
+
+api:
+  dashboard: true
+
+ping:
+  entryPoint: "web"
+
+providers:
+  file:
+    filename: "/etc/traefik/dynamic.yaml"
+    watch: true
