@@ -111,11 +111,11 @@ http:
 ############################################
 tls:
   certificates:
-    - certFile: "/etc/traefik/certs/server.crt"
-      keyFile:  "/etc/traefik/certs/server.key"
+    - certFile: "/etc/traefik/certs/server/server.crt"
+      keyFile:  "/etc/traefik/certs/server/server.key"
   options:
     mtls:
       clientAuth:
         caFiles:
-          - "/etc/traefik/certs/ca.crt"
+          - "/etc/traefik/certs/server/ca.crt"
         clientAuthType: "RequireAndVerifyClientCert"

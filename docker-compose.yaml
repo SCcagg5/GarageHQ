@@ -1,4 +1,3 @@
-# version: "3"
 services:
   traefik:
     image: traefik
@@ -8,17 +7,20 @@ services:
     container_name: traefik
     restart: unless-stopped
     environment:
-      BASIC_AUTH_CREDENTIALS: "admin:changeme"
+      BASIC_AUTH_CREDENTIALS: "${BASIC_USER}:${BASIC_PASSWORD}"
       HTTPS_PUBLIC_PORT: "8443"
     ports:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./traefik/certs:/etc/traefik/certs:ro
+      - ./traefik/certs/server:/etc/traefik/certs/server:ro
     depends_on:
-      garage:
+      garage-ui:
         condition: service_healthy
-
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   garage-ui:
     image: garage-ui
@@ -31,10 +33,14 @@ services:
       API_BASE_URL: http://garage:3903
       S3_ENDPOINT_URL: http://garage:3900
       BASE_PATH: /garage-ui
-      ADMIN_TOKEN: UkLeGWEvHnXBqnueR3ISEMWpOnm40jH2tM2HnnL/0F4=
+      ADMIN_TOKEN: "${ADMIN_TOKEN}"
     depends_on:
       garage:
         condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   garage:
     image: garagehq
@@ -43,22 +49,25 @@ services:
       dockerfile: ./Dockerfile
     container_name: garage
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
     environment:
-      KEY_ID: GK1be033097b829d9fab3e64f1
-      KEY_SECRET: 84b2ab76989f0bdb1d7601fefa97cd322ab146ef13cf423e6eae6e29d98ee798
-      RPC_SECRET: 4425f5c26c5e11581d3223904324dcb5b5d5dfb14e5e7f35e38c595424f5f1e6
-      ADMIN_TOKEN: UkLeGWEvHnXBqnueR3ISEMWpOnm40jH2tM2HnnL/0F4=
-      METRICS_TOKEN: BCAdFjoa9G0KJR0WXnHHm7fs1ZAbfpI8iIZ+Z/a2NgI=
+      KEY_ID: "${KEY_ID}"
+      KEY_SECRET: "${KEY_SECRET}"
+      RPC_SECRET: "${RPC_SECRET}"
+      ADMIN_TOKEN: "${ADMIN_TOKEN}"
+      METRICS_TOKEN: "${METRICS_TOKEN}"
       S3_REGION: garage
       ROOT_DOMAIN: .garage
       USE_LOCAL_TZ: "false"
       REPLICATION_FACTOR: "1"
       COMPRESSION_LEVEL: "0"
-    expose:
-      - 3900
-      - 3901
-      - 3902
-      - 3903
     volumes:
       - ./garage/volume/meta:/var/lib/garage/meta:rw
       - ./garage/volume/data:/var/lib/garage/data:rw
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"

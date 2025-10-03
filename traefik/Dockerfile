@@ -29,6 +29,7 @@ COPY ./scripts/healthcheck.sh /bin/healthcheck.sh
 RUN chmod +x /bin/entrypoint.sh /bin/healthcheck.sh
 
 EXPOSE 80 443
+
 ENTRYPOINT ["/bin/sh", "/bin/entrypoint.sh"]
 HEALTHCHECK --interval=10s --timeout=1s \
             --start-period=0s --start-interval=5s \
