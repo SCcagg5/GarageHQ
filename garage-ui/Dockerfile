@@ -1,6 +1,6 @@
 FROM alpine:3.21
 
-COPY ./binaries/glibc-runtime-amd64.tgz /tmp/glibc.tgz
+COPY ./binaries/lib/glibc-runtime-amd64.tgz /tmp/glibc.tgz
 RUN tar -xzf /tmp/glibc.tgz -C / && rm -f /tmp/glibc.tgz
 ENV LD_LIBRARY_PATH=/usr/glibc-compat/lib
 

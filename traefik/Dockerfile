@@ -1,6 +1,20 @@
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata apache2-utils && update-ca-certificates
+COPY ./binaries/lib/*.tgz /tmp/libs/
+COPY ./binaries/lib/*.tgz /tmp/libs/
+RUN set -eux; \
+  for f in /tmp/libs/*.tgz; do \
+    tar -xzf "$f" -C / \
+      --exclude=dev \
+      --exclude=dev/* \
+      --exclude=./dev \
+      --exclude=./dev/* \
+      --exclude=proc --exclude=./proc \
+      --exclude=sys  --exclude=./sys \
+      --exclude=run  --exclude=./run; \
+  done; \
+  rm -rf /tmp/libs; \
+  update-ca-certificates || true
 
 COPY ./binaries/traefik_v3.5.0_linux_amd64.tgz /tmp/traefik.tgz
 RUN tar -xzf /tmp/traefik.tgz -C /usr/local/bin \
