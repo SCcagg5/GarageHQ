@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link id="favicon" rel="shortcut icon" />
+  <title>Bucket Browser</title>
+  <link rel="stylesheet" href="assets/vendor/mdi/7.4.47/css/materialdesignicons.min.css" />
+  <link rel="stylesheet" href="assets/vendor/fontawesome/7.0.0/css/all.css" />
+  <link rel="stylesheet" href="assets/vendor/buefy/1.0.1/buefy.min.css" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div id="app" class="is-hidden">
+    <div :style="cssVars">
+      <div class="container">
+        <div class="container is-clearfix mb-1">
+          <div class="buttons is-pulled-left w-100">
+            <div id="breadcrumbs">
+              <b-button
+                v-for="(breadcrump, index) in pathBreadcrumbs"
+                :key="breadcrump.url"
+                type="is-primary"
+                rounded
+                tag="a"
+                :href="breadcrump.url"
+                icon-pack="fas"
+                :icon-left="index == 0 ? 'bucket': ''"
+                :class="[{ 'font-bolder': index == 0 }, 'whitespace-pre']">
+                <template v-if="index > 0">{{ breadcrump.name }}</template>
+              </b-button>
+            </div>
+            <div class="container flex">
+              <b-field
+                :type="!validBucketPrefix(searchPrefix) ? 'is-danger' : ''"
+                :class="searchPrefix && pathPrefix.replace(/^.*\//,'') === searchPrefix ? 'search-prefix-matches-path-prefix' : ''"
+                class="flex-auto">
+                <b-input
+                  rounded
+                  v-model="searchPrefix"
+                  placeholder="search by prefix"
+                  icon="magnifying-glass"
+                  icon-clickable
+                  @icon-click="searchByPrefix"
+                  :icon-right="searchPrefix !== '' ? 'close-circle' : ''"
+                  icon-right-clickable
+                  @icon-right-click="searchPrefix = ''; searchByPrefix()"
+                  @keydown.enter="searchByPrefix"
+                  enterkeyhint="search">
+                </b-input>
+              </b-field>
+              <b-button type="is-primary" outlined rounded icon-pack="fas" icon-left="upload" @click="triggerUpload" class="ml-07"></b-button>
+              <input ref="fileInput" type="file" multiple class="is-hidden" @change="onFileInput" />
+              <b-button
+                v-if="config.allowDownloadAll && pathContentTableData.filter(i => i.type === 'content').length >= 2"
+                type="is-primary" outlined rounded :loading="downloadAllFilesProgress !== null"
+                icon-pack="fas" icon-left="download" @click="downloadAllFiles" class="ml-07"></b-button>
+              <div class="container display-contents" v-if="nextContinuationToken || previousContinuationTokens.length > 0">
+                <div class="ml-06"></div>
+                <b-button type="is-primary" rounded icon-pack="fas" icon-left="angle-left" @click="previousPage" :disabled="previousContinuationTokens.length === 0"></b-button>
+                <b-button type="is-primary" rounded icon-pack="fas" icon-right="angle-right" @click="nextPage" :disabled="!nextContinuationToken"></b-button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <b-progress v-if="downloadAllFilesProgress !== null" type="is-info" :value="downloadAllFilesProgress * 105" show-value class="mb-1">
+          <div class="progress-inner">
+            <span>{{ `${downloadAllFilesReceivedCount} / ${downloadAllFilesCount} Files` }}</span>
+          </div>
+        </b-progress>
+        <b-table
+          :data="pathContentTableData"
+          :default-sort="config.defaultOrder.split('-')[0]"
+          :default-sort-direction="config.defaultOrder.split('-')[1]"
+          :mobile-cards="true">
+          <b-table-column v-slot="props" field="name" label="Name" sortable :custom-sort="sortTableData('name')" cell-class="name-column">
+            <div>
+              <b-icon pack="far" :icon="props.row.type === 'prefix' ? 'folder' : 'file-alt'" size="is-medium" class="name-column-icon"></b-icon>
+              <b-button
+                v-if="props.row.type === 'content' && props.row.name.endsWith('.md')"
+                type="is-text"
+                rounded
+                tag="a"
+                :href="previewHref(props.row)"
+                @click.prevent="openPreview(props.row)">
+                {{ props.row.name }}
+              </b-button>
+              <b-button
+                v-else-if="props.row.type === 'content'"
+                type="is-text"
+                rounded
+                tag="a"
+                :href="props.row.url"
+                @click.prevent="downloadViaProxy(props.row)">
+                {{ props.row.name }}
+              </b-button>
+              <b-button v-else type="is-text" rounded tag="a" :href="`#${props.row.prefix}`" @click="blurActiveElement">
+                {{ props.row.name }}
+              </b-button>
+              <div class="name-column-buttons">
+                <template v-if="props.row.type === 'content'">
+                  <b-button
+                    v-if="props.row.name.endsWith('.md')"
+                    tag="a" type="is-text" icon-left="image" size="is-medium"
+                    :href="previewHref(props.row)" target="_blank">
+                  </b-button>
+                  <b-button
+                    v-if="props.row.installUrl"
+                    tag="a" type="is-primary" rounded outlined
+                    :href="props.row.installUrl" target="_blank"
+                    @click="blurActiveElement">Install</b-button>
+                </template>
+              </div>
+            </div>
+            <div v-if="cardView && (props.row.size || props.row.dateModified)" class="name-column-details">
+              <div>{{ formatBytes(props.row.size) }}</div>
+              <b-tooltip :active="!!props.row.dateModified" type="is-light" size="is-small" position="is-left" animated multilined>
+                <div>{{ formatDateTime_relative(props.row.dateModified) }}</div>
+                <template #content>
+                  <span>{{ formatDateTime_date(props.row.dateModified) }}</span><br />
+                  <span>{{ formatDateTime_time(props.row.dateModified) }}</span>
+                </template>
+              </b-tooltip>
+            </div>
+          </b-table-column>
+          <b-table-column v-slot="props" field="size" numeric label="Size" sortable :custom-sort="sortTableData('size')" right width="128" cell-class="size-column">
+            {{ formatBytes(props.row.size) }}
+          </b-table-column>
+          <b-table-column v-slot="props" field="dateModified" label="Date Modified" sortable :custom-sort="sortTableData('dateModified')" centered width="256" cell-class="modified-column">
+            <b-tooltip :active="!!props.row.dateModified" type="is-light" size="is-small" position="is-left" animated multilined>
+              <div>{{ formatDateTime_relative(props.row.dateModified) }}</div>
+              <template #content>
+                <span>{{ formatDateTime_date(props.row.dateModified) }}</span><br />
+                <span>{{ formatDateTime_time(props.row.dateModified) }}</span>
+              </template>
+            </b-tooltip>
+          </b-table-column>
+        </b-table>
+        <div class="container is-clearfix">
+          <div v-show="nextContinuationToken || previousContinuationTokens.length > 0" class="buttons is-pulled-right">
+            <b-button type="is-primary" rounded icon-pack="fas" icon-left="angle-left" @click="previousPage" :disabled="previousContinuationTokens.length === 0"></b-button>
+            <b-button type="is-primary" rounded icon-pack="fas" icon-right="angle-right" @click="nextPage" :disabled="!nextContinuationToken"></b-button>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bucket-url">
+        <a :href="`${config.bucketMaskUrl || config.bucketUrl}?prefix=${bucketPrefix}`">Bucket: {{ config.bucketUrl }}</a>
+      </div>
+    </div>
+  </div>
+  <div id="preview" class="is-hidden">
+    <zero-md id="preview-markdown" src="#">
+      <template>
+        <style>
+          :host { display: block; position: relative; contain: content; }
+          :host([hidden]) { display: none; }
+          .markdown-body {
+            padding: 4.5rem max(calc(100% - max(1012px, min(1012px, 100%))) / 2, 2.5rem);
+            min-height: calc(100vh - (2 * 4.5rem));
+            background: whitesmoke;
+          }
+        </style>
+        <link rel="stylesheet" href="assets/vendor/github-markdown-css/5/github-markdown-light.min.css"/>
+        <link rel="stylesheet" href="assets/vendor/highlightjs/11/styles/github.min.css"/>
+        <link rel="stylesheet" href="assets/vendor/katex/0/katex.min.css"/>
+      </template>
+    </zero-md>
+  </div>
+  <script src="assets/vendor/vue/3.5.18/vue.global.prod.js"></script>
+  <script>window.process = {env: {NODE_ENV: 'production'}};</script>
+  <script src="assets/vendor/buefy/1.0.1/buefy.min.js"></script>
+  <script src="assets/vendor/moment/2.30.1/moment.min.js"></script>
+  <script type="module" src="assets/vendor/zero-md/3.1.7/zero-md-3.1.7.js"></script>
+  <script src="assets/vendor/fflate/0.8.2/index.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
