@@ -22,7 +22,7 @@ function devicePlatform_iOS() {
          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 function encodePath(path) {
-  path = path.replace(/\/{2,}/g, '/');
+  path = (path || '').replace(/\/{2,}/g, '/');
   try { if (decodeURI(path) !== path) return path; } catch(e) {}
   const m = {";":"%3B","?":"%3F",":":"%3A","@":"%40","&":"%26","=":"%3D","+":"%2B","$":"%24",",":"%2C","#":"%23"};
   return encodeURI(path).split("").map(ch => m[ch] || ch).join("");
@@ -54,44 +54,45 @@ function encodePath(path) {
   function hide(el) { el.classList.add('is-hidden'); }
 
   function route(vm) {
-  const r = getRoute();
-  const appEl = document.getElementById('app');
-  const previewEl = document.getElementById('preview');
+    const r = getRoute();
+    const appEl = document.getElementById('app');
+    const previewEl = document.getElementById('preview');
 
-  if (r.params.get('preview')) {
-    hide(appEl); show(previewEl);
+    if (r.params.get('preview')) {
+      hide(appEl);
+      show(previewEl);
 
-    if (r.params.get('preview') === 'markdown') {
-      const fileUrl = `${(config.bucketMaskUrl || config.bucketUrl).replace(/\/*$/, '')}/${encodePath(r.path)}`;
+      if (r.params.get('preview') === 'markdown') {
+        const fileUrl = `${(config.bucketMaskUrl || config.bucketUrl).replace(/\/*$/, '')}/${encodePath(r.path)}`;
+        const z = document.querySelector('#preview #preview-markdown');
+        customElements.whenDefined('zero-md').then(() => {
+          if (!z) return;
+          const current = z.getAttribute('src') || '';
+          if (current !== fileUrl) z.setAttribute('src', fileUrl);
+        });
+        const dir = (r.path || '').replace(/[^/]*$/, '');
+        if (vm.pathPrefix !== dir) vm.pathPrefix = dir;
+      }
+    } else {
       const z = document.querySelector('#preview #preview-markdown');
+      if (z && z.hasAttribute('src')) z.removeAttribute('src');
+      show(appEl);
+      hide(previewEl);
 
-      customElements.whenDefined('zero-md').then(() => {
-        if (!z) return;
-        const current = z.getAttribute('src') || '';
-        if (current !== fileUrl) {
-          z.setAttribute('src', fileUrl);
-        } else {
-          z.removeAttribute('src');
-          z.setAttribute('src', fileUrl);
-        }
-      });
+      let target = r.path || '';
+      if (!target && config.rootPrefix) target = config.rootPrefix;
 
-      const dir = r.path.replace(/[^/]*$/, '');
-      if (vm.pathPrefix !== dir) vm.pathPrefix = dir;
+      if (vm.pathPrefix !== target) {
+        vm.pathPrefix = target;
+      }
     }
-  } else {
-    show(appEl); hide(previewEl);
-    const target = r.path || config.rootPrefix || '';
-    if (vm.pathPrefix !== target) vm.pathPrefix = target; else vm.refresh();
   }
-}
-
 
   const app = Vue.createApp({
     data() {
       return {
         config,
-        pathPrefix: '',
+        pathPrefix: null,
         searchPrefix: '',
         pathContentTableData: [],
         previousContinuationTokens: [],
@@ -107,18 +108,20 @@ function encodePath(path) {
     computed: {
       cssVars() { return {'--primary-color': this.config.primaryColor}; },
       pathBreadcrumbs() {
-        return ['', ...(this.pathPrefix.match(/[^/]*\//g) || [])]
+        const p = (this.pathPrefix || '');
+        return ['', ...(p.match(/[^/]*\//g) || [])]
           .map((part, i, parts) => ({ name: decodeURI(part), url: '#' + parts.slice(0, i).join('') + part }));
       },
       cardView() { return this.windowWidth <= 768; },
-      bucketPrefix() { return `${config.rootPrefix}${this.pathPrefix}`; }
+      bucketPrefix() { return `${config.rootPrefix}${this.pathPrefix || ''}`; }
     },
     watch: {
       pathPrefix() {
+        const pp = (this.pathPrefix || '');
         this.previousContinuationTokens = [];
         this.continuationToken = undefined;
         this.nextContinuationToken = undefined;
-        this.searchPrefix = this.pathPrefix.replace(/^.*\//, '');
+        this.searchPrefix = pp.replace(/^.*\//, '');
         this.refresh();
       }
     },
@@ -134,7 +137,7 @@ function encodePath(path) {
       },
       searchByPrefix() {
         if (this.validBucketPrefix(this.searchPrefix)) {
-          const dir = this.pathPrefix.replace(/[^/]*$/, '');
+          const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
           const nextPath = dir + this.searchPrefix;
           if (('#' + nextPath) !== window.location.hash) window.location.hash = nextPath;
         }
@@ -158,7 +161,7 @@ function encodePath(path) {
         this.downloadAllFilesReceivedCount = 0;
         this.downloadAllFilesProgress = 0;
         let totalContentLength = 0, totalReceivedLength = 0;
-        const archiveName = this.pathPrefix.split('/').filter(p => p.trim()).pop();
+        const archiveName = (this.pathPrefix || '').split('/').filter(p => p.trim()).pop();
         const archiveData = [];
         const archive = new fflate.Zip((err, data) => { if (err) throw err; archiveData.push(data); });
         await Promise.all(archiveFiles.map(async (url) => {
@@ -173,7 +176,9 @@ function encodePath(path) {
             if (done) { fileStream.push(new Uint8Array(), true); break; }
             fileStream.push(new Uint8Array(value));
             totalReceivedLength += value.length;
-            this.downloadAllFilesProgress = ((totalContentLength ? (totalReceivedLength / totalContentLength) : 0) + (this.downloadAllFilesCount ? (this.downloadAllFilesReceivedCount / this.downloadAllFilesCount) : 0)) / 2;
+            const p1 = totalContentLength ? (totalReceivedLength / totalContentLength) : 0;
+            const p2 = this.downloadAllFilesCount ? (this.downloadAllFilesReceivedCount / this.downloadAllFilesCount) : 0;
+            this.downloadAllFilesProgress = (p1 + p2) / 2;
           }
           this.downloadAllFilesReceivedCount++;
         })).then(() => archive.end());
@@ -204,18 +209,46 @@ function encodePath(path) {
         }
       },
       previewHref(row) {
-        const dir = this.pathPrefix.replace(/[^/]*$/, '');
+        const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
         return `#${dir}${row.name}?preview=markdown`;
       },
       openPreview(row) {
         const h = this.previewHref(row);
         if (('#' + h) !== window.location.hash) window.location.hash = h;
       },
+      triggerUpload() {
+        const el = this.$refs.fileInput;
+        if (el) { el.value = ''; el.click(); }
+      },
+      async onFileInput(evt) {
+        const files = evt.target.files;
+        if (!files || !files.length) return;
+        for (const file of files) {
+          const key = (this.bucketPrefix + file.name).replace(/\/{2,}/g, '/');
+          const putURL = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(key)}`;
+          try {
+            const res = await fetch(putURL, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type || 'application/octet-stream' },
+              body: file
+            });
+            if (!res.ok) {
+              const txt = await res.text().catch(()=>'');
+              throw new Error(`HTTP ${res.status}${txt ? ' – ' + txt : ''}`);
+            }
+            this.$buefy.toast.open({ message: `Uploaded ${file.name}`, type: 'is-success' });
+          } catch (e) {
+            this.$buefy.toast.open({ message: `Upload failed: ${file.name} — ${e}`, type: 'is-danger' });
+          }
+        }
+        evt.target.value = '';
+        await this.refresh();
+      },
       async refresh() {
         if (this.isRefreshing) return;
         this.isRefreshing = true;
         try {
-          let url = `${config.bucketUrl}?list-type=2&delimiter=/&prefix=${this.bucketPrefix}`;
+          let url = `${config.bucketUrl}?list-type=2&delimiter=/&prefix=${encodePath(this.bucketPrefix)}`;
           if (config.pageSize) url += `&max-keys=${config.pageSize}`;
           if (this.continuationToken) url += `&continuation-token=${encodePath(this.continuationToken)}`;
           const resp = await fetch(url);
@@ -226,10 +259,12 @@ function encodePath(path) {
           }
           const nextTok = listBucketResult.querySelector("NextContinuationToken");
           this.nextContinuationToken = nextTok && nextTok.textContent;
+
           const commonPrefixes = [...listBucketResult.querySelectorAll("ListBucketResult > CommonPrefixes")]
             .map(tag => ({ prefix: tag.querySelector('Prefix').textContent.removePrefix(config.rootPrefix) }))
             .filter(p => !config.keyExcludePatterns.find(rx => rx.test(p.prefix.removePrefix(config.rootPrefix))))
             .map(p => ({ type:'prefix', name: p.prefix.split('/').slice(-2)[0] + '/', prefix: p.prefix }));
+
           const contents = [...listBucketResult.querySelectorAll("ListBucketResult > Contents")]
             .map(tag => ({
               key: tag.querySelector('Key').textContent,
@@ -239,16 +274,16 @@ function encodePath(path) {
             .filter(c => c.key !== decodeURI(this.bucketPrefix))
             .filter(c => !config.keyExcludePatterns.find(rx => rx.test(c.key.removePrefix(config.rootPrefix))))
             .map(c => {
-              if (c.key.endsWith('/') && !c.size) return { type:'prefix', name: c.key.split('/')[0] + '/', prefix: `${this.pathPrefix}${c.key}` };
-              const url = `/s3/${c.key}`;
+              if (c.key.endsWith('/') && !c.size) return { type:'prefix', name: c.key.split('/').slice(-2)[0] + '/', prefix: c.key.removePrefix(config.rootPrefix) };
+              const url = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(c.key)}`;
               let installUrl;
               if (url.endsWith('/manifest.plist') && devicePlatform_iOS()) installUrl = `itms-services://?action=download-manifest&url=${encodePath(url)}`;
               return { type:'content', name: c.key.split('/').slice(-1)[0], size: c.size, dateModified: c.dateModified, key: c.key, url, installUrl };
             });
+
           this.pathContentTableData = [...commonPrefixes, ...contents];
         } catch (error) {
           this.$buefy.notification.open({ message: (error && (error.message || error))?.toString(), type:'is-danger', duration:60000, position:'is-bottom' });
-          throw error;
         } finally {
           this.isRefreshing = false;
         }
