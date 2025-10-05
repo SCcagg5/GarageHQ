@@ -174,3 +174,213 @@ a {
 .ctx-menu .dropdown-item { padding: .35rem .75rem; font-size: .9rem; }
 .ctx-menu .dropdown-item.is-active { background: rgba(22,125,240,.08); }
 .is-danger-text { color: #b00020 !important; }
+
+:root {
+  /* taille intermédiaire entre small (~1rem) et medium (~2rem Bulma) */
+  --icon-smmd: 1.50rem;
+}
+
+/* Pour <b-icon> (span.icon) */
+.icon.is-smmd {
+  width: var(--icon-smmd);
+  height: var(--icon-smmd);
+}
+.icon.is-smmd > .mdi,
+.icon.is-smmd > .fa,
+.icon.is-smmd > i {
+  font-size: var(--icon-smmd);
+  line-height: var(--icon-smmd);
+}
+
+/* Pour <b-button> qui génère un span.icon à l’intérieur */
+.button.is-smmd-icon .icon {
+  width: var(--icon-smmd);
+  height: var(--icon-smmd);
+}
+.button.is-smmd-icon .icon > .mdi,
+.button.is-smmd-icon .icon > i {
+  font-size: var(--icon-smmd);
+  line-height: var(--icon-smmd);
+}
+
+/* (optionnel) peaufiner l’alignement dans la table */
+.name-column-icon.is-smmd { margin-right: .25rem; }
+
+:root{
+  --icon-muted:#9aa0a6;
+  --icon-muted-hover:var(--primary-color);
+}
+
+.icon-actions{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  margin-left:.7rem;
+}
+
+.icon-action{
+  display:inline-flex;
+  width:calc(var(--icon-smmd) + .5rem);
+  height:calc(var(--icon-smmd) + .5rem);
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:var(--icon-muted);
+  border-radius:.5rem;
+  transition:background .15s ease,color .15s ease,opacity .15s ease;
+}
+.icon-action i.mdi{
+  font-size:var(--icon-smmd);
+  line-height:1;
+}
+
+.icon-action:hover{ background:rgba(22,125,240,.08); color:var(--icon-muted-hover); }
+.icon-action.is-disabled{ opacity:.4; cursor:default; pointer-events:none; }
+
+/* Spinner MDI */
+.mdi-spin{ animation:mdi-spin 1s linear infinite; }
+@keyframes mdi-spin{ to{ transform:rotate(360deg); } }
+
+.breadcrumbs-row{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+
+.breadcrumbs-trail{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.25rem;
+  font-size:.95rem;
+}
+
+.breadcrumb-sep{ color:#a0a4ab; }
+
+.breadcrumb-link{
+  color:inherit;
+  text-decoration:none;
+  padding:.1rem .2rem;
+  border-radius:.25rem;
+  transition:background .15s ease, color .15s ease;
+}
+.breadcrumb-link:hover{
+  color:var(--primary-color);
+  background:rgba(22,125,240,.08);
+}
+
+.ctx-trigger.is-open {
+  color: var(--icon-muted-hover);
+  background: rgba(22,125,240,.08);
+}
+
+:root{
+  --icon-muted:#9aa0a6;
+  --icon-muted-hover:var(--primary-color);
+}
+
+/* trigger = icône seule, zone cliquable = le glyphe uniquement */
+.ctx-trigger-icon{
+  font-size: var(--icon-smmd);
+  color: var(--icon-muted);
+  line-height: 1;
+  cursor: pointer;
+  display: inline-block;
+  vertical-align: middle;
+  transition: color .15s ease;
+}
+.ctx-trigger-icon:hover,
+.ctx-trigger-icon.is-open{
+  color: var(--icon-muted-hover);
+}
+
+/* optionnel: aligne l’icône verticalement au centre de la cellule */
+.actions-col .dropdown { display: inline-flex; align-items: center; }
+
+.dialog .modal-card {
+    max-width: calc(100% - 100px);
+}
+
+/* largeur de colonne partagée entre l’entête et le contenu */
+#preview { --mdw: 1012px; }
+
+.preview-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+
+  /* aligne sur la même colonne que zero-md */
+  max-width: min(100%, var(--mdw));
+  margin: .5rem auto 0;
+  padding: 0 .5rem .25rem;
+
+  background: transparent;   /* pas de bande pleine largeur */
+  border: 0;
+}
+
+.preview-info{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  font-size:.95rem;
+}
+.preview-name{ font-weight:600; }
+.preview-sep{ color:#a0a4ab; }
+.preview-size{ color:#6b7280; }
+
+/* trigger “…” (même rendu que les icônes d’action) */
+.ctx-trigger-icon{
+  font-size: var(--icon-smmd, 1.25rem);
+  color: var(--icon-muted, #9aa0a6);
+  line-height: 1;
+  cursor: pointer;
+  display: inline-block;
+  vertical-align: middle;
+  transition: color .15s ease;
+}
+.ctx-trigger-icon:hover,
+.ctx-trigger-icon.is-open{
+  color: var(--icon-muted-hover, var(--primary-color));
+}
+
+/* largeur de colonne identique au padding de .markdown-body du template */
+#preview .preview-wrap{
+  padding: 0 max(calc(100% - max(1012px, min(1012px, 100%))) / 2, 2.5rem);
+}
+.preview-bar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:.75rem; padding:.75rem 0 .25rem; background:transparent; border:0;
+}
+.preview-info{ display:flex; align-items:center; gap:.5rem; font-size:.95rem; }
+.preview-name{ font-weight:600; }
+.preview-sep{ color:#a0a4ab; } .preview-size{ color:#6b7280; }
+
+/* trigger “…” (couleur/hover comme les autres icônes) */
+.ctx-trigger-icon{
+  font-size: var(--icon-smmd, 1.25rem);
+  color: var(--icon-muted, #9aa0a6);
+  line-height:1; cursor:pointer; display:inline-block; transition:color .15s;
+}
+.ctx-trigger-icon:hover,.ctx-trigger-icon.is-open{ color:var(--icon-muted-hover, var(--primary-color)); }
+
+/* barre outils 2 colonnes : gauche (recherche) / centre (spacer) / droite (menus) */
+.toolbar-row { display:flex; align-items:center; gap:.75rem; }
+.toolbar-left { flex: 0 1 520px; min-width: 260px; }
+.toolbar-spacer { flex: 1 1 auto; }
+.toolbar-right { display:flex; align-items:center; gap:.5rem; }
+
+/* puces de menu compactes */
+.toolbar-chip {
+  display:inline-flex; align-items:center; gap:.35rem;
+  padding:.35rem .6rem; border-radius:10px; cursor:pointer;
+  color:#64748b; background:#fff; border:1px solid #e5e7eb; user-select:none;
+}
+.toolbar-chip:hover { background:#eef5ff; color:#167df0; border-color:#dbeafe; }
+
+/* icônes simples */
+.icon-action { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; cursor:pointer; color:#64748b; }
+.icon-action:hover { background:#eef5ff; color:#167df0; }
+.icon-action.is-disabled { opacity:.45; pointer-events:none; }
+
+.toolbar-dd .dropdown-menu { min-width: 200px; }

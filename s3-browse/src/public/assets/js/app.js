@@ -1,3 +1,4 @@
+/* ===== Config ===== */
 const config = {
   primaryColor: '#167df0',
   allowDownloadAll: true,
@@ -10,6 +11,7 @@ const config = {
   defaultOrder: 'name-asc'
 };
 
+/* ===== Helpers ===== */
 String.prototype.removePrefix = function (prefix) { return this.startsWith(prefix) ? this.substring(prefix.length) : this; };
 String.prototype.escapeHTML = function () { const t = document.createElement('span'); t.innerText = this; return t.innerHTML; };
 
@@ -20,8 +22,9 @@ function encodePath(path) {
   const m = {";":"%3B","?":"%3F",":":"%3A","@":"%40","&":"%26","=":"%3D","+":"%2B","$":"%24",",":"%2C","#":"%23"};
   return encodeURI(path).split("").map(ch => m[ch] || ch).join("");
 }
-function extOf(s='') { const m = /\.([^.]+)$/.exec(s.toLowerCase()); return m ? m[1] : ''; }
+function extOf(s='') { const m = /\.([^.]+)$/.exec((s||'').toLowerCase()); return m ? m[1] : ''; }
 
+/* ===== Lang mapping ===== */
 const EXT_TO_LANG = {
   sh:'bash', bash:'bash', zsh:'bash', ksh:'bash', fish:'bash',
   ps1:'powershell', psm1:'powershell', psd1:'powershell',
@@ -38,8 +41,7 @@ const EXT_TO_LANG = {
   sql:'sql', gql:'graphql', graphql:'graphql',
   dockerfile:'dockerfile', compose:'yaml',
   makefile:'makefile', mk:'makefile', gnumakefile:'makefile',
-  nginx:'nginx', conf_d:'nginx',
-  proto:'protobuf', thrift:'thrift',
+  nginx:'nginx', proto:'protobuf', thrift:'thrift',
   java:'java', kt:'kotlin', kts:'kotlin', groovy:'groovy', scala:'scala',
   c:'c', h:'c',
   cpp:'cpp', cxx:'cpp', cc:'cpp', hpp:'cpp', hxx:'cpp', inl:'cpp',
@@ -50,37 +52,23 @@ const EXT_TO_LANG = {
   rb:'ruby',
   php:'php', phtml:'php', inc:'php',
   pl:'perl', pm:'perl', t:'perl',
-  lua:'lua',
-  r:'r',
-  dart:'dart',
-  ktm:'kotlin',
+  lua:'lua', r:'r', dart:'dart',
+  prisma:'prisma', zig:'zig', cue:'cue', bicep:'bicep',
+  tf:'terraform', tfvars:'terraform', hcl:'terraform',
+  kql:'kusto',
+  asciidoc:'asciidoc', adoc:'asciidoc',
+  bat:'dos', cmd:'dos',
+  wasm:'wasm',
   scalahtml:'xml',
   mustache:'xml', hbs:'xml', ejs:'xml', njk:'xml', twig:'xml', jinja:'xml',
   handlebars:'xml',
-  tex:'latex', latex:'latex',
-  asm:'armasm', s:'armasm',
-  wasm:'wasm',
-  clj:'clojure', cljs:'clojure', edn:'clojure',
-  erl:'erlang', ex:'elixir', exs:'elixir',
   hs:'haskell',
   ml:'ocaml', mli:'ocaml',
   pas:'pascal', pp:'pascal',
   vb:'vbnet', vbs:'vbscript',
   fs:'fsharp', fsx:'fsharp',
-  adoc:'asciidoc', asciidoc:'asciidoc',
-  bat:'dos', cmd:'dos',
-  nojekyll:'plaintext',
-  prisma:'prisma',
-  zig:'zig',
-  cue:'cue',
-  bicep:'bicep',
-  tf:'terraform', tfvars:'terraform', hcl:'terraform',
-  kql:'kusto',
-  sqlx:'sql',
-  psql:'sql',
   ipynb:'json'
 };
-
 const MIME_TO_LANG = [
   [/shellscript|x-sh|x-bash|x-zsh|x-shellscript/i, 'bash'],
   [/powershell/i, 'powershell'],
@@ -124,39 +112,22 @@ const MIME_TO_LANG = [
   [/terraform|hcl/i, 'terraform'],
   [/kusto/i, 'kusto'],
   [/dart/i, 'dart'],
-  [/r-language|x-r|/i, 'r'],
+  [/r-language|x-r|\/r$/i, 'r'],
   [/text\/plain/i, 'plaintext']
 ];
 
 function isImageExt(e){ return ['png','jpg','jpeg','gif','webp','bmp','svg','avif'].includes(e); }
+function isArchiveExt(e){ return ['zip','rar','7z','tar','gz','tgz','bz2','tbz','xz','txz','zst'].includes(e); }
+function isVideoExt(e){ return ['mp4','mkv','webm','avi','mov','m4v','mpg','mpeg','flv','3gp','wmv','ogv','mts','m2ts','ts','vob'].includes(e); }
+function isAudioExt(e){ return ['mp3','flac','wav','m4a','aac','ogg','opus','aiff','aif','alac','wma','amr','midi','mid'].includes(e); }
+function isSpreadsheetExt(e){ return ['xls','xlsx','xlsm','xlsb','xlt','ods','csv','tsv','numbers'].includes(e); }
+function isPresentationExt(e){ return ['ppt','pptx','pps','ppsx','odp','key'].includes(e); }
 function isPdfExt(e){ return e === 'pdf'; }
 function isCodeExt(e){ return !!EXT_TO_LANG[e]; }
 function langFromExt(e){ return EXT_TO_LANG[e] || 'plaintext'; }
-function langFromMime(ct=''){
-  const lo = (ct||'').toLowerCase();
-  for (const [rx, lang] of MIME_TO_LANG) if (rx.test(lo)) return lang;
-  return '';
-}
-function guessPreviewTypeByMime(ct=''){
-  const lo = (ct||'').toLowerCase();
-  if (!lo) return 'download';
-  if (lo.startsWith('image/')) return 'image';
-  if (lo === 'application/pdf') return 'pdf';
-  if (lo === 'text/markdown' || lo === 'text/x-markdown') return 'markdown';
-  if (lo.startsWith('text/')) return 'code';
-  if (/(json|xml|yaml|toml|x-)?(javascript|typescript)/.test(lo)) return 'code';
-  if (/shellscript|x-sh|x-bash|x-zsh/.test(lo)) return 'code';
-  return 'download';
-}
-function guessPreviewTypeByExt(name){
-  const e = extOf(name);
-  if (e === 'md') return 'markdown';
-  if (isImageExt(e)) return 'image';
-  if (isPdfExt(e)) return 'pdf';
-  if (isCodeExt(e)) return 'code';
-  return 'download';
-}
+function langFromMime(ct=''){ const lo=(ct||'').toLowerCase(); for (const [rx,lang] of MIME_TO_LANG) if (rx.test(lo)) return lang; return ''; }
 
+/* ===== Setup (theme + exclusions) ===== */
 (function setup() {
   const htmlPrefix = 'HTML>';
   if (config.title) config.titleHTML = config.title.startsWith(htmlPrefix) ? config.title.substring(htmlPrefix.length) : config.title.escapeHTML();
@@ -173,59 +144,13 @@ function guessPreviewTypeByExt(name){
   if (!config.keyExcludePatterns.some(r => r.toString() === rx.toString())) config.keyExcludePatterns.push(rx);
 })();
 
+/* ===== App ===== */
 (function main() {
-  function getRoute() {
-    const hash = decodeURIComponent(window.location.hash).replace(/^#/, '') || '';
-    const q = hash.indexOf('?');
-    const path = q === -1 ? hash : hash.slice(0, q);
-    const params = new URLSearchParams(q === -1 ? '' : hash.slice(q));
-    return { path, params };
-  }
-  function show(el) { el.classList.remove('is-hidden'); }
-  function hide(el) { el.classList.add('is-hidden'); }
-
-  function route(vm) {
-    const r = getRoute();
-    const appEl = document.getElementById('app');
-    const previewEl = document.getElementById('preview');
-    if (r.params.get('preview')) {
-      hide(appEl); show(previewEl);
-      const type = r.params.get('preview');
-      const fileUrl = `${(config.bucketMaskUrl || config.bucketUrl).replace(/\/*$/, '')}/${encodePath(r.path)}`;
-      const z = document.querySelector('#preview #preview-markdown');
-      if (type === 'markdown') {
-        customElements.whenDefined('zero-md').then(() => { if (!z) return; const current = z.getAttribute('src') || ''; if (current !== fileUrl) z.setAttribute('src', fileUrl); });
-      } else if (type === 'image') {
-        vm.setZeroMdInline(`![${r.path.split('/').pop()}](${fileUrl})`);
-      } else if (type === 'pdf') {
-        vm.setZeroMdInline(`<iframe src="${fileUrl}" style="width:100%;height:calc(100vh - 5rem);border:0;"></iframe>`);
-      } else if (type === 'code') {
-        const urlLang = r.params.get('lang');
-        fetch(fileUrl)
-          .then(resp => resp.ok ? resp.text() : Promise.reject(new Error(`HTTP ${resp.status}`)))
-          .then(text => {
-            const fallback = langFromExt(extOf(r.path)) || 'plaintext';
-            const lang = urlLang || fallback;
-            const md = `\`\`\`${lang}\n${text}\n\`\`\``;
-            vm.setZeroMdInline(md);
-          })
-          .catch(err => vm.setZeroMdInline(`\`\`\`plaintext\nErreur de chargement: ${String(err)}\n\`\`\``));
-      }
-      const dir = (r.path || '').replace(/[^/]*$/, '');
-      if (vm.pathPrefix !== dir) vm.pathPrefix = dir;
-    } else {
-      const z = document.querySelector('#preview #preview-markdown'); if (z && z.hasAttribute('src')) z.removeAttribute('src');
-      show(appEl); hide(previewEl);
-      let target = r.path || ''; if (!target && config.rootPrefix) target = config.rootPrefix;
-      if (vm.pathPrefix !== target) vm.pathPrefix = target;
-    }
-  }
-
   const app = Vue.createApp({
     data() {
       return {
         config,
-        pathPrefix: null,
+        pathPrefix: '',                 // chemin courant
         searchPrefix: '',
         pathContentTableData: [],
         previousContinuationTokens: [],
@@ -235,53 +160,162 @@ function guessPreviewTypeByExt(name){
         downloadAllFilesCount: null,
         downloadAllFilesReceivedCount: null,
         downloadAllFilesProgress: null,
-        isRefreshing: false
+        isRefreshing: false,
+        hasFflate: typeof window !== 'undefined' && !!window.fflate
       };
     },
     computed: {
       cssVars() { return {'--primary-color': this.config.primaryColor}; },
-      pathBreadcrumbs() { const p = (this.pathPrefix || ''); return ['', ...(p.match(/[^/]*\//g) || [])].map((part, i, parts) => ({ name: decodeURI(part), url: '#' + parts.slice(0, i).join('') + part })); },
+      pathBreadcrumbs() {
+        const p = (this.pathPrefix || '');
+        return ['', ...(p.match(/[^/]*\//g) || [])]
+          .map((part, i, parts) => ({ name: decodeURI(part), url: '#' + parts.slice(0, i).join('') + part }));
+      },
       cardView() { return this.windowWidth <= 768; },
-      bucketPrefix() { return `${config.rootPrefix}${this.pathPrefix || ''}`; }
+      bucketPrefix() { return `${config.rootPrefix}${this.pathPrefix || ''}`; },
+      canDownloadAll() {
+        const filesCount = this.pathContentTableData.filter(i => i.type === 'content').length;
+        return this.config.allowDownloadAll && filesCount >= 2;
+      }
     },
     watch: {
-      pathPrefix() { const pp = (this.pathPrefix || ''); this.previousContinuationTokens = []; this.continuationToken = undefined; this.nextContinuationToken = undefined; this.searchPrefix = pp.replace(/^.*\//, ''); this.refresh(); }
+      pathPrefix() {
+        const pp = (this.pathPrefix || '');
+        this.previousContinuationTokens = [];
+        this.continuationToken = undefined;
+        this.nextContinuationToken = undefined;
+        this.searchPrefix = pp.replace(/^.*\//, '');
+        this.refresh();
+      }
     },
     methods: {
+      /* UI helpers */
       blurActiveElement() { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); },
       moment,
-      validBucketPrefix(prefix) { if (prefix === '') return true; if (prefix.startsWith(' ') || prefix.endsWith(' ')) return false; if (prefix.includes('//')) return false; if (prefix.startsWith('/') && this.bucketPrefix.includes('/')) return false; return true; },
-      searchByPrefix() { if (this.validBucketPrefix(this.searchPrefix)) { const dir = (this.pathPrefix || '').replace(/[^/]*$/, ''); const nextPath = dir + this.searchPrefix; if (('#' + nextPath) !== window.location.hash) window.location.hash = nextPath; } },
-      previousPage() { if (this.previousContinuationTokens.length > 0) { this.continuationToken = this.previousContinuationTokens.pop(); this.refresh(); } },
-      nextPage() { if (this.nextContinuationToken) { this.previousContinuationTokens.push(this.continuationToken); this.continuationToken = this.nextContinuationToken; this.refresh(); } },
-      setZeroMdInline(markdown) {
-        const z = document.querySelector('#preview #preview-markdown');
-        if (!z) return;
-
-        // Forcer zero-md à utiliser le contenu inline (et non l’attribut src)
-        if (z.hasAttribute('src')) z.removeAttribute('src');
-
-        // Supprimer tout ancien contenu inline
-        [...z.querySelectorAll('script[type="text/markdown"]')].forEach(s => s.remove());
-
-        // Injecter le nouveau markdown (HTML autorisé si nécessaire)
-        const s = document.createElement('script');
-        s.type = 'text/markdown';
-        s.textContent = String(markdown || '');
-        z.appendChild(s);
+      manualRefresh() {
+        this.previousContinuationTokens = [];
+        this.continuationToken = undefined;
+        this.nextContinuationToken = undefined;
+        this.refresh();
       },
 
+      /* Router (index = liste uniquement) */
+      updatePathFromHash() {
+        const raw = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+        const q = raw.indexOf('?');
+        const path = q === -1 ? raw : raw.slice(0, q);
+
+        let target = path || '';
+        if (!target && config.rootPrefix) target = config.rootPrefix;
+
+        if (this.pathPrefix !== target) {
+            this.pathPrefix = target;
+        } else {
+            if (!this.pathContentTableData.length) this.refresh();
+        }
+      },
+
+
+      /* Breadcrumb root */
+      goRoot() {
+        const target = (config.rootPrefix || '');
+        const h = '#' + target;
+        if (window.location.hash !== h) window.location.hash = h;
+      },
+
+      /* Icons per row */
+      fileRowIcon(row) {
+        if (row.type === 'prefix') return 'folder';
+        const e = extOf(row.name);
+        if (isArchiveExt(e))       return 'zip-box';
+        if (isVideoExt(e))         return 'file-video-outline';
+        if (isAudioExt(e))         return 'file-music-outline';
+        if (isSpreadsheetExt(e))   return 'file-table-outline';
+        if (isPresentationExt(e))  return 'file-powerpoint-outline';
+        if (e === 'md' || e === 'txt') return 'file-document-outline';
+        if (isImageExt(e))         return 'file-image-outline';
+        if (isPdfExt(e))           return 'file-pdf-box';
+        if (isCodeExt(e))          return 'file-code-outline';
+        return 'file-outline';
+      },
+
+      /* Search / nav */
+      validBucketPrefix(prefix) {
+        if (prefix === '') return true;
+        if (prefix.startsWith(' ') || prefix.endsWith(' ')) return false;
+        if (prefix.includes('//')) return false;
+        if (prefix.startsWith('/') && this.bucketPrefix.includes('/')) return false;
+        return true;
+      },
+      searchByPrefix() {
+        if (this.validBucketPrefix(this.searchPrefix)) {
+          const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
+          const nextPath = dir + this.searchPrefix;
+          if (('#' + nextPath) !== window.location.hash) window.location.hash = nextPath;
+        }
+      },
+      previousPage() { if (this.previousContinuationTokens.length > 0) { this.continuationToken = this.previousContinuationTokens.pop(); this.refresh(); } },
+      nextPage() { if (this.nextContinuationToken) { this.previousContinuationTokens.push(this.continuationToken); this.continuationToken = this.nextContinuationToken; this.refresh(); } },
+
+      /* Preview: ouvre preview.html dans un nouvel onglet */
+      previewHref(row) {
+        const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
+        const e = extOf(row.name);
+        let type = 'download';
+        if (e === 'md') type = 'markdown';
+        else if (isImageExt(e)) type = 'image';
+        else if (isPdfExt(e)) type = 'pdf';
+        else if (isCodeExt(e)) type = 'code';
+        const lang = type === 'code' ? (langFromExt(e) || 'plaintext') : '';
+        const base = location.pathname.replace(/[^/]*$/, '') + 'preview.html';
+        return `${base}#${dir}${row.name}?type=${type}${lang ? `&lang=${encodeURIComponent(lang)}`:''}`;
+      },
+      async openPreview(row) {
+        const href = this.previewHref(row);
+        const w = window.open(href, '_blank', 'noopener,noreferrer');
+
+        // Essai d’amélioration par HEAD (MIME) pour ajuster type/lang
+        try {
+          const key = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
+          const fileUrl = `${(config.bucketMaskUrl || config.bucketUrl).replace(/\/*$/, '')}/${encodePath(key)}`;
+          const head = await fetch(fileUrl, { method: 'HEAD' });
+          if (!head.ok) return;
+          const ct = head.headers.get('Content-Type') || '';
+          let type = 'download';
+          if (ct.startsWith('image/')) type = 'image';
+          else if (ct === 'application/pdf') type = 'pdf';
+          else if (/markdown/i.test(ct)) type = 'markdown';
+          else if (ct.startsWith('text/') || /(json|xml|yaml|toml|javascript|typescript|shellscript)/i.test(ct)) type = 'code';
+          if (type !== 'download' && w && !w.closed) {
+            const url = new URL(w.location.href);
+            url.searchParams.set('type', type);
+            if (type === 'code') {
+              const byMime = langFromMime(ct) || 'plaintext';
+              url.searchParams.set('lang', byMime);
+            } else {
+              url.searchParams.delete('lang');
+            }
+            w.location.replace(url.toString());
+          }
+        } catch {}
+      },
+
+      /* Metadata / rename / delete (trash fallback) */
       async showMetadata(row) {
         try {
-          const url = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(row.key)}`;
+          const key = ((config.rootPrefix||'') + (this.pathPrefix||'') + (row.name || '')).replace(/\/{2,}/g,'/');
+          const url = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(key)}`;
           const res = await fetch(url, { method: 'HEAD' });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const meta = {}; res.headers.forEach((v, k) => { meta[k] = v; });
           const text = JSON.stringify(meta, null, 2);
-          this.$buefy.dialog.alert({ title: `Metadata — ${row.name || row.prefix}`, message: `<pre style="white-space:pre-wrap;margin:0">${text}</pre>`, ariaRole: 'alertdialog', ariaModal: true, dangerouslyUseHTMLString: true });
+          this.$buefy.dialog.alert({
+            title: `Metadata — ${row.name || row.prefix}`,
+            message: `<pre style="white-space:pre-wrap;margin:0">${text}</pre>`,
+            ariaRole: 'alertdialog', ariaModal: true, dangerouslyUseHTMLString: true
+          });
         } catch (e) { this.$buefy.toast.open({ message: `Metadata error: ${e}`, type: 'is-danger' }); }
       },
-
       renameFile(row) {
         const current = row.name;
         this.$buefy.dialog.prompt({
@@ -291,31 +325,31 @@ function guessPreviewTypeByExt(name){
           onConfirm: async (val) => {
             const newName = (val || '').trim();
             if (!newName || newName === current) return;
-            const parent = row.key.replace(/[^/]*$/, '');
+            const parent = (((config.rootPrefix||'') + (this.pathPrefix||'')).replace(/\/{2,}/g,'/')).replace(/[^/]*$/, '');
+            const oldKey = parent + current;
             const newKey = parent + newName;
-            await this.copyOnly(row.key, newKey);
-            const ok = await this.tryDelete(row.key);
-            if (!ok) await this.moveToTrashSingle(row.key);
+            await this.copyOnly(oldKey, newKey);
+            const ok = await this.tryDelete(oldKey);
+            if (!ok) await this.moveToTrashSingle(oldKey);
             this.$buefy.toast.open({ message: `Renommé: ${current} → ${newName}`, type: 'is-success' });
             await this.refresh();
           }
         });
       },
-
       async deleteFile(row) {
         this.$buefy.dialog.confirm({
           message: `Supprimer « ${row.name} » ?`,
           confirmText: 'Supprimer',
           type: 'is-danger',
           onConfirm: async () => {
-            const ok = await this.tryDelete(row.key);
-            if (!ok) { await this.moveToTrashSingle(row.key); this.$buefy.toast.open({ message: `Déplacé dans la corbeille`, type: 'is-warning' }); }
+            const key = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
+            const ok = await this.tryDelete(key);
+            if (!ok) { await this.moveToTrashSingle(key); this.$buefy.toast.open({ message: `Déplacé dans la corbeille`, type: 'is-warning' }); }
             else this.$buefy.toast.open({ message: `Supprimé`, type: 'is-success' });
             await this.refresh();
           }
         });
       },
-
       renamePrefix(row) {
         const oldPrefix = row.prefix;
         const baseName = oldPrefix.replace(/\/$/, '').split('/').pop();
@@ -337,7 +371,6 @@ function guessPreviewTypeByExt(name){
           }
         });
       },
-
       deletePrefix(row) {
         const oldPrefix = row.prefix;
         this.$buefy.dialog.confirm({
@@ -354,6 +387,7 @@ function guessPreviewTypeByExt(name){
         });
       },
 
+      /* Copy / delete / trash / batch */
       async copyOnly(srcKey, dstKey) {
         const base = (config.bucketUrl || '/s3').replace(/\/*$/, '');
         const srcUrl = `${base}/${encodePath(srcKey)}`;
@@ -363,7 +397,6 @@ function guessPreviewTypeByExt(name){
         const put = await fetch(dstUrl, { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
         if (!put.ok) throw new Error(`PUT ${put.status}`);
       },
-
       async tryDelete(key) {
         const url = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(key)}`;
         try {
@@ -373,7 +406,6 @@ function guessPreviewTypeByExt(name){
           return false;
         } catch { return false; }
       },
-
       async tryDeletePrefix(prefixRel) {
         const fullPrefix = (config.rootPrefix || '') + prefixRel;
         const keys = await this.listAllKeys(fullPrefix);
@@ -388,13 +420,11 @@ function guessPreviewTypeByExt(name){
         }
         return allOk;
       },
-
       async moveToTrashSingle(key) {
         const ts = new Date().toISOString().replace(/[:.]/g,'-');
         const dst = (config.trashPrefix || '_trash/') + ts + '/' + key;
         await this.copyOnly(key, dst);
       },
-
       async moveToTrashPrefix(prefixRel) {
         const ts = new Date().toISOString().replace(/[:.]/g,'-');
         const fullPrefix = (config.rootPrefix || '') + prefixRel;
@@ -402,7 +432,6 @@ function guessPreviewTypeByExt(name){
         const moves = keys.map(k => this.copyOnly(k, (config.trashPrefix || '_trash/') + ts + '/' + k));
         await Promise.all(moves);
       },
-
       async batchCopyPrefix(oldPrefixRel, newPrefixRel) {
         const fullOld = (config.rootPrefix || '') + oldPrefixRel;
         const fullNew = (config.rootPrefix || '') + newPrefixRel;
@@ -419,7 +448,6 @@ function guessPreviewTypeByExt(name){
         };
         await Promise.all(Array.from({ length: Math.min(concurrency, keys.length) }, run));
       },
-
       async listAllKeys(fullPrefix) {
         const out = [];
         let token;
@@ -436,22 +464,39 @@ function guessPreviewTypeByExt(name){
         return out;
       },
 
+      /* Download all (fflate) */
       async downloadAllFiles() {
+        if (!window.fflate || !window.fflate.Zip || !window.fflate.ZipPassThrough) {
+          this.$buefy.toast.open({ message: 'Archive indisponible (fflate non chargé).', type: 'is-danger' });
+          return;
+        }
+        const { Zip, ZipPassThrough } = window.fflate;
         const archiveFiles = this.pathContentTableData.filter(i => i.type === 'content').map(i => i.url);
-        this.downloadAllFilesCount = archiveFiles.length; this.downloadAllFilesReceivedCount = 0; this.downloadAllFilesProgress = 0;
+        if (!archiveFiles.length) {
+          this.$buefy.toast.open({ message: 'Aucun fichier à télécharger.', type: 'is-warning' });
+          return;
+        }
+        this.downloadAllFilesCount = archiveFiles.length;
+        this.downloadAllFilesReceivedCount = 0;
+        this.downloadAllFilesProgress = 0;
+
         let totalContentLength = 0, totalReceivedLength = 0;
         const archiveName = (this.pathPrefix || '').split('/').filter(p => p.trim()).pop();
         const archiveData = [];
-        const archive = new fflate.Zip((err, data) => { if (err) throw err; archiveData.push(data); });
+        const archive = new Zip((err, data) => { if (err) throw err; archiveData.push(data); });
+
         await Promise.all(archiveFiles.map(async (url) => {
           const fileName = url.split('/').filter(p => p.trim()).pop();
-          const fileStream = new fflate.ZipPassThrough(fileName); archive.add(fileStream);
+          const fileStream = new ZipPassThrough(fileName);
+          archive.add(fileStream);
+
           const resp = await fetch(url);
           const len = parseInt(resp.headers.get('Content-Length') || '0', 10);
           if (!isNaN(len)) totalContentLength += len;
+
           const reader = resp.body.getReader();
           while (true) {
-            const {done, value} = await reader.read();
+            const { done, value } = await reader.read();
             if (done) { fileStream.push(new Uint8Array(), true); break; }
             fileStream.push(new Uint8Array(value));
             totalReceivedLength += value.length;
@@ -461,63 +506,43 @@ function guessPreviewTypeByExt(name){
           }
           this.downloadAllFilesReceivedCount++;
         })).then(() => archive.end());
-        const blob = new Blob(archiveData, {type:'application/octet-stream'});
-        const href = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = href; a.download = `${archiveName || 'archive'}.zip`; a.click(); URL.revokeObjectURL(href);
+
+        const blob = new Blob(archiveData, { type: 'application/zip' });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = `${archiveName || 'archive'}.zip`;
+        a.click();
+        URL.revokeObjectURL(href);
+
         this.downloadAllFilesCount = this.downloadAllFilesReceivedCount = this.downloadAllFilesProgress = null;
       },
 
-      async downloadViaProxy(row) {
-        try {
-          const res = await fetch(row.url, { method: 'GET' });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const blob = await res.blob();
-          const href = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = href; a.download = row.name || 'download';
-          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(href);
-        } catch (e) { this.$buefy.toast.open({ message: `Failed to download ${row.name}: ${e.message || e}`, type:'is-danger', duration:8000, position:'is-bottom' }); }
-      },
-
-      previewHref(row) {
-        const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
-        const t = guessPreviewTypeByExt(row.name);
-        let h = `#${dir}${row.name}?preview=${t}`;
-        if (t === 'code') {
-          const e = extOf(row.name);
-          const lang = langFromExt(e);
-          if (lang) h += `&lang=${encodeURIComponent(lang)}`;
-        }
-        return h;
-      },
-
-      async resolveFileInfo(row){
-        const fileUrl = `${(config.bucketMaskUrl || config.bucketUrl).replace(/\/*$/, '')}/${encodePath(row.key)}`;
-        let ct = '';
-        try { const head = await fetch(fileUrl, { method:'HEAD' }); if (head.ok) ct = head.headers.get('Content-Type') || ''; } catch {}
-        let type = guessPreviewTypeByExt(row.name);
-        const byMime = guessPreviewTypeByMime(ct);
-        if (byMime !== 'download') type = byMime;
-        let lang = 'plaintext';
-        if (type === 'code') lang = langFromExt(extOf(row.name)) || langFromMime(ct) || 'plaintext';
-        return { type, lang, ct };
-      },
-
-      async openPreview(row){
-        const info = await this.resolveFileInfo(row);
-        if (info.type === 'download') { this.downloadViaProxy(row); return; }
-        const dir = (this.pathPrefix || '').replace(/[^/]*$/, '');
-        let h = `#${dir}${row.name}?preview=${info.type}`;
-        if (info.type === 'code' && info.lang) h += `&lang=${encodeURIComponent(info.lang)}`;
-        if (('#' + h) !== window.location.hash) window.location.hash = h;
-      },
-
+      /* Uploads */
       triggerUpload() { const el = this.$refs.fileInput; if (el) { el.value = ''; el.click(); } },
-      async onFileInput(evt) { const files = Array.from(evt.target.files || []); if (!files.length) return; await this.uploadFiles(files, f => f.name); evt.target.value = ''; await this.refresh(); },
+      async onFileInput(evt) {
+        const files = Array.from(evt.target.files || []);
+        if (!files.length) return;
+        await this.uploadFiles(files, f => f.name);
+        evt.target.value = '';
+        await this.refresh();
+      },
       triggerUploadDir() { const el = this.$refs.dirInput; if (el) { el.value = ''; el.click(); } },
-      async onDirInput(evt) { const files = Array.from(evt.target.files || []); if (!files.length) return; await this.uploadFiles(files, f => f.webkitRelativePath || f.name); evt.target.value = ''; await this.refresh(); },
+      async onDirInput(evt) {
+        const files = Array.from(evt.target.files || []);
+        if (!files.length) return;
+        await this.uploadFiles(files, f => f.webkitRelativePath || f.name);
+        evt.target.value = '';
+        await this.refresh();
+      },
       async uploadFiles(files, keyResolver) {
-        const base = (config.bucketUrl || '/s3').replace(/\/*$/, ''); const concurrency = 5; const queue = files.slice();
+        const base = (config.bucketUrl || '/s3').replace(/\/*$/, '');
+        const concurrency = 5;
+        const queue = files.slice();
         const runOne = async () => {
           const f = queue.shift(); if (!f) return;
-          const rel = keyResolver(f); const key = (this.bucketPrefix + rel).replace(/\/{2,}/g, '/');
+          const rel = keyResolver(f);
+          const key = (this.bucketPrefix + rel).replace(/\/{2,}/g, '/');
           const putURL = `${base}/${encodePath(key)}`;
           try {
             const res = await fetch(putURL, { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f });
@@ -529,6 +554,7 @@ function guessPreviewTypeByExt(name){
         this.$buefy.toast.open({ message: `Upload terminé (${files.length})`, type: 'is-success' });
       },
 
+      /* Listing */
       async refresh() {
         if (this.isRefreshing) return;
         this.isRefreshing = true;
@@ -562,6 +588,7 @@ function guessPreviewTypeByExt(name){
         } finally { this.isRefreshing = false; }
       },
 
+      /* Sort + format */
       sortTableData(columnName) {
         return (a, b, isAsc) => {
           if (a.type !== b.type) return a.type === 'prefix' ? -1 : 1;
@@ -575,26 +602,28 @@ function guessPreviewTypeByExt(name){
           return 0;
         };
       },
-      formatBytes(size) { if (!size) return '-'; const KB=1024, MB=1048576, GB=1073741824; if(size<KB)return size+'  B'; if(size<MB)return (size/KB).toFixed(0)+' KB'; if(size<GB)return (size/MB).toFixed(2)+' MB'; return (size/GB).toFixed(2)+' GB'; },
+      formatBytes(size) { if (!Number.isFinite(size)) return '-'; const KB=1024, MB=1048576, GB=1073741824; if(size<KB)return size+'  B'; if(size<MB)return (size/KB).toFixed(0)+' KB'; if(size<GB)return (size/MB).toFixed(2)+' MB'; return (size/GB).toFixed(2)+' GB'; },
       formatDateTime_date(d){ return d ? moment(d).format('ddd, DD. MMM YYYY') : '-'; },
       formatDateTime_time(d){ return d ? moment(d).format('hh:mm:ss') : '-'; },
       formatDateTime_relative(d){ return d ? moment(d).fromNow() : '-'; }
     },
-    async mounted() {
-      window.addEventListener('hashchange', () => route(this));
-      window.addEventListener('resize', () => { this.windowWidth = window.innerWidth; });
-      route(this);
+    mounted() {
+        this.hasFflate = !!(window && window.fflate);
+        window.addEventListener('hashchange', this.updatePathFromHash);
+        window.addEventListener('resize', () => { this.windowWidth = window.innerWidth; });
+
+        this.updatePathFromHash();                 // positionne pathPrefix
+        if (!this.pathContentTableData.length) {   // au cas où le watcher ne se déclenche pas
+            this.refresh();
+        }
     },
-    async beforeUnmount() {
-      window.removeEventListener('resize');
-      window.removeEventListener('hashchange');
+    beforeUnmount() {
+        window.removeEventListener('hashchange', this.updatePathFromHash);
+        window.removeEventListener('resize', this.updatePathFromHash);
     }
+
   });
 
-  app.use(Buefy.default, {defaultIconPack: 'fas'});
-  app.mount('#app');
-
-  const appEl = document.getElementById('app');
-  const previewEl = document.getElementById('preview');
-  if (appEl && previewEl) { }
+  app.use(Buefy.default, {defaultIconPack: 'mdi'});
+  app.mount('#root');
 })();
