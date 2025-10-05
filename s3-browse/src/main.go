@@ -240,19 +240,33 @@ func (p *proxy) handlePutObject(w http.ResponseWriter, r *http.Request) {
 	p.forwardRaw(w, r, http.MethodPut, pathUnescaped, rawPath, r.URL.RawQuery, r.Body, cl, ct)
 }
 
+func (p *proxy) handleDeleteObject(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodDelete {
+        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    pathUnescaped, rawPath, err := p.splitKeyFromURL(r)
+    if err != nil {
+        http.Error(w, "bad path", http.StatusBadRequest)
+        return
+    }
+    p.forwardRaw(w, r, http.MethodDelete, pathUnescaped, rawPath, r.URL.RawQuery, nil, 0, "")
+}
+
+
 func withCORS(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Ajuste l’origins si besoin
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Vary", "Origin")
-		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Range, If-None-Match, If-Modified-Since, Accept, User-Agent")
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Vary", "Origin")
+        if r.Method == http.MethodOptions {
+            w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, PUT, DELETE, OPTIONS")
+            w.Header().Set("Access-Control-Allow-Headers",
+                "Content-Type, Content-Length, Range, If-None-Match, If-Modified-Since, Accept, User-Agent")
+            w.WriteHeader(http.StatusNoContent)
+            return
+        }
+        h.ServeHTTP(w, r)
+    })
 }
 
 func (p *proxy) routes() http.Handler {
@@ -277,12 +291,15 @@ func (p *proxy) routes() http.Handler {
 			p.handleGetObject(w, r)
 		case http.MethodPut:
 			p.handlePutObject(w, r)
+		case http.MethodDelete:          // <- AJOUT
+			p.handleDeleteObject(w, r)
 		case http.MethodOptions:
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

@@ -167,3 +167,10 @@ a {
 .b-table .table-wrapper {
     overflow-x: visible;
 }
+
+.actions-col { text-align: right !important; width: 44px; }
+.actions-col .button { margin: 0; }
+.ctx-menu .dropdown-content { padding: .25rem 0; }
+.ctx-menu .dropdown-item { padding: .35rem .75rem; font-size: .9rem; }
+.ctx-menu .dropdown-item.is-active { background: rgba(22,125,240,.08); }
+.is-danger-text { color: #b00020 !important; }
