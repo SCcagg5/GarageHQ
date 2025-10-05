@@ -384,3 +384,12 @@ a {
 .icon-action.is-disabled { opacity:.45; pointer-events:none; }
 
 .toolbar-dd .dropdown-menu { min-width: 200px; }
+/* Rendre les noms "cliquables" sans style de lien */
+.clickable {
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+.clickable:hover {
+  text-decoration: underline;
+}

@@ -6,207 +6,214 @@
   <link id="favicon" rel="shortcut icon" />
   <title>Bucket Browser</title>
 
-  <!-- MDI + Buefy + App CSS -->
+  <!-- Vendors CSS -->
   <link rel="stylesheet" href="assets/vendor/mdi/7.4.47/css/materialdesignicons.min.css" />
   <link rel="stylesheet" href="assets/vendor/buefy/1.0.1/buefy.min.css" />
   <link rel="stylesheet" href="assets/css/style.css" />
+  <!-- UI partagé -->
+  <link rel="stylesheet" href="assets/css/ui.css" />
 </head>
 <body>
   <div id="root">
-    <div id="app"><!-- plus de is-hidden -->
+    <div id="app">
       <div :style="cssVars">
-        <div class="container">
 
-          <!-- Breadcrumb (ligne 1) -->
-          <div class="container is-clearfix mb-1">
-            <div id="breadcrumbs" class="breadcrumbs-row">
-              <span class="icon-action is-smmd-icon" title="Aller à la racine" @click="goRoot">
-                <i class="mdi mdi-database-outline"></i>
-              </span>
-              <div class="breadcrumbs-trail">
-                <template v-for="(crumb, index) in pathBreadcrumbs" :key="crumb.url">
-                  <template v-if="index > 0">
-                    <span class="breadcrumb-sep">/</span>
-                    <a :href="crumb.url" class="breadcrumb-link">
-                      {{ crumb.name.replace(/\/$/, '') }}
-                    </a>
-                  </template>
-                </template>
+        <!-- Ligne 1 : icône + / <prefix> -->
+        <div class="top">
+          <div class="container">
+            <div class="head">
+              <div class="title" style="display:flex;align-items:center;gap:.5rem;">
+                <i class="mdi mdi-database-outline" style="font-size:1.3rem;"></i>
+                <h1 style="margin:0;font-size:1.15rem;font-weight:600;">
+                  / {{ (pathPrefix || '').replace(/\/$/, '') }}
+                </h1>
               </div>
+              <div class="right"><!-- nothing --></div>
             </div>
           </div>
+        </div>
 
-          <!-- Barre de recherche + menus (ligne 2) -->
-          <div class="container toolbar-row">
-            <!-- Recherche (gauche) -->
-            <div class="toolbar-left">
-              <b-field
-                :type="!validBucketPrefix(searchPrefix) ? 'is-danger' : ''"
-                :class="searchPrefix && pathPrefix.replace(/^.*\//,'') === searchPrefix ? 'search-prefix-matches-path-prefix' : ''"
-                class="flex-auto"
-              >
+        <!-- Ligne 2 : search à gauche, actions à droite -->
+        <div class="toolbar">
+          <div class="container" style="display:flex;align-items:center;gap:1rem;">
+            <!-- Gauche : search -->
+            <div class="toolbar-left" style="flex:1 1 auto;min-width:280px;">
+              <b-field>
                 <b-input
-                  rounded
+                  expanded
                   v-model="searchPrefix"
-                  placeholder="search by prefix"
-                  icon="magnifying-glass"
-                  icon-clickable
-                  @icon-click="searchByPrefix"
-                  :icon-right="searchPrefix !== '' ? 'close-circle' : ''"
-                  icon-right-clickable
-                  @icon-right-click="searchPrefix = ''; searchByPrefix()"
-                  @keydown.enter="searchByPrefix"
-                  enterkeyhint="search"
-                ></b-input>
+                  placeholder="Search current folder (prefix)..."
+                  @keyup.native.enter="searchByPrefix">
+                </b-input>
+                <p class="control">
+                  <b-button
+                    type="is-primary"
+                    rounded
+                    icon-pack="mdi"
+                    icon-left="mdi-magnify"
+                    @click="searchByPrefix">
+                    Search
+                  </b-button>
+                </p>
               </b-field>
             </div>
 
-            <!-- Espace central flexible -->
-            <div class="toolbar-spacer"></div>
+            <div class="toolbar-spacer" style="flex:0 0 12px;"></div>
 
-            <!-- Menus (droite) -->
-            <div class="toolbar-right">
+            <!-- Droite : Refresh, Actions, New -->
+            <div class="toolbar-right" style="display:flex;align-items:center;gap:.5rem;">
+              <b-button type="is-light" rounded icon-pack="mdi" icon-left="mdi-refresh" @click="manualRefresh">
+                Refresh
+              </b-button>
 
-              <!-- Refresh -->
-              <span class="icon-action" title="Refresh" @click="manualRefresh">
-                <i class="mdi mdi-refresh"></i>
-              </span>
-
-              <!-- + New -->
-              <b-dropdown position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu" class="toolbar-dd">
+              <b-dropdown position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu">
                 <template #trigger="{ active }">
-                  <span class="toolbar-chip" role="button" tabindex="0" aria-label="+ New">
-                    <i class="mdi mdi-plus"></i>
-                    <span>New</span>
-                    <i class="mdi mdi-chevron-down"></i>
-                  </span>
+                  <b-button type="is-light" rounded icon-pack="mdi" icon-left="mdi-cog">
+                    Actions
+                    <i class="mdi mdi-chevron-down" style="margin-left:.35rem;"></i>
+                  </b-button>
                 </template>
+                <b-dropdown-item
+                  :disabled="!canDownloadAll"
+                  @click="canDownloadAll && downloadAllFiles()">
+                  <i class="mdi mdi-archive-arrow-down-outline"></i>
+                  <span style="margin-left:.5rem;">Download all files</span>
+                </b-dropdown-item>
+              </b-dropdown>
 
+              <b-dropdown position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu">
+                <template #trigger="{ active }">
+                  <b-button type="is-primary" rounded icon-pack="mdi" icon-left="mdi-plus">
+                    New
+                    <i class="mdi mdi-chevron-down" style="margin-left:.35rem;"></i>
+                  </b-button>
+                </template>
                 <b-dropdown-item @click="triggerUpload">
-                  <i class="mdi mdi-file-upload-outline"></i> Upload file
+                  <i class="mdi mdi-file-upload-outline"></i>
+                  <span style="margin-left:.5rem;">Upload file</span>
                 </b-dropdown-item>
                 <b-dropdown-item @click="triggerUploadDir">
-                  <i class="mdi mdi-folder-upload"></i> Upload folder
+                  <i class="mdi mdi-folder-upload"></i>
+                  <span style="margin-left:.5rem;">Upload folder</span>
                 </b-dropdown-item>
               </b-dropdown>
-
-              <!-- Actions -->
-              <b-dropdown position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu" class="toolbar-dd">
-                <template #trigger="{ active }">
-                  <span class="toolbar-chip" role="button" tabindex="0" aria-label="Actions">
-                    <i class="mdi mdi-dots-vertical"></i>
-                    <span>Actions</span>
-                    <i class="mdi mdi-chevron-down"></i>
-                  </span>
-                </template>
-
-                <b-dropdown-item :disabled="!canDownloadAll" @click="canDownloadAll && downloadAllFiles()">
-                  <i class="mdi mdi-folder-download"></i> Download all
-                </b-dropdown-item>
-              </b-dropdown>
-
-              <!-- Inputs cachés -->
-              <input ref="fileInput" type="file" multiple class="is-hidden" @change="onFileInput" />
-              <input ref="dirInput" type="file" webkitdirectory directory class="is-hidden" @change="onDirInput" />
-            </div>
-          </div>
-
-          <!-- Progress -->
-          <b-progress v-if="downloadAllFilesProgress !== null" type="is-info" :value="downloadAllFilesProgress * 105" show-value class="mb-1">
-            <div class="progress-inner">
-              <span>{{ `${downloadAllFilesReceivedCount} / ${downloadAllFilesCount} Files` }}</span>
-            </div>
-          </b-progress>
-
-          <!-- Table -->
-          <b-table
-            :data="pathContentTableData"
-            :default-sort="config.defaultOrder.split('-')[0]"
-            :default-sort-direction="config.defaultOrder.split('-')[1]"
-            :mobile-cards="true">
-            <b-table-column v-slot="props" field="name" label="Name" sortable :custom-sort="sortTableData('name')" cell-class="name-column">
-              <div>
-                <b-icon pack="mdi" :icon="fileRowIcon(props.row)" class="name-column-icon is-smmd"></b-icon>
-
-                <!-- Dossier -->
-                <b-button v-if="props.row.type !== 'content'"
-                          type="is-text" rounded tag="a"
-                          :href="`#${props.row.prefix}`"
-                          @click="blurActiveElement">
-                  {{ props.row.name }}
-                </b-button>
-
-                <!-- Fichier => preview dans un nouvel onglet -->
-                <b-button v-else
-                          type="is-text" rounded tag="a"
-                          :href="previewHref(props.row)"
-                          target="_blank"
-                          @click.prevent="openPreview(props.row)">
-                  {{ props.row.name }}
-                </b-button>
-              </div>
-
-              <div v-if="cardView && (props.row.size || props.row.dateModified)" class="name-column-details">
-                <div>{{ formatBytes(props.row.size) }}</div>
-                <b-tooltip :active="!!props.row.dateModified" type="is-light" size="is-small" position="is-left" animated multilined>
-                  <div>{{ formatDateTime_relative(props.row.dateModified) }}</div>
-                  <template #content>
-                    <span>{{ formatDateTime_date(props.row.dateModified) }}</span><br />
-                    <span>{{ formatDateTime_time(props.row.dateModified) }}</span>
-                  </template>
-                </b-tooltip>
-              </div>
-            </b-table-column>
-
-            <b-table-column v-slot="props" field="size" numeric label="Size" sortable :custom-sort="sortTableData('size')" right width="128" cell-class="size-column">
-              {{ formatBytes(props.row.size) }}
-            </b-table-column>
-
-            <b-table-column v-slot="props" field="dateModified" label="Date Modified" sortable :custom-sort="sortTableData('dateModified')" centered width="256" cell-class="modified-column">
-              <b-tooltip :active="!!props.row.dateModified" type="is-light" size="is-small" position="is-left" animated multilined>
-                <div>{{ formatDateTime_relative(props.row.dateModified) }}</div>
-                <template #content>
-                  <span>{{ formatDateTime_date(props.row.dateModified) }}</span><br />
-                  <span>{{ formatDateTime_time(props.row.dateModified) }}</span>
-                </template>
-              </b-tooltip>
-            </b-table-column>
-
-            <!-- Menu par ligne -->
-            <b-table-column v-slot="props" field="actions" label="" width="44" header-class="actions-col" cell-class="actions-col">
-              <b-dropdown class="ctx-menu" position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu">
-                <template #trigger="{ active }">
-                  <i class="mdi mdi-dots-vertical ctx-trigger-icon" :class="{ 'is-open': active }" role="button" tabindex="0" aria-label="Actions"></i>
-                </template>
-
-                <template v-if="props.row.type === 'content'">
-                  <b-dropdown-item @click="showMetadata(props.row)">Voir les métadonnées</b-dropdown-item>
-                  <b-dropdown-item @click="renameFile(props.row)">Renommer</b-dropdown-item>
-                  <b-dropdown-item @click="downloadViaProxy(props.row)">Télécharger</b-dropdown-item>
-                  <hr class="dropdown-divider">
-                  <b-dropdown-item class="is-danger-text" @click="deleteFile(props.row)">Supprimer</b-dropdown-item>
-                </template>
-
-                <template v-else>
-                  <b-dropdown-item @click="renamePrefix(props.row)">Renommer le dossier</b-dropdown-item>
-                  <b-dropdown-item class="is-danger-text" @click="deletePrefix(props.row)">Supprimer le dossier</b-dropdown-item>
-                </template>
-              </b-dropdown>
-            </b-table-column>
-          </b-table>
-
-          <!-- Pagination -->
-          <div class="container is-clearfix">
-            <div v-show="nextContinuationToken || previousContinuationTokens.length > 0" class="buttons is-pulled-right">
-              <b-button type="is-primary" rounded icon-pack="mdi" icon-left="chevron-left" @click="previousPage" :disabled="previousContinuationTokens.length === 0"></b-button>
-              <b-button type="is-primary" rounded icon-pack="mdi" icon-right="chevron-right" @click="nextPage" :disabled="!nextContinuationToken"></b-button>
             </div>
           </div>
         </div>
 
-        <div class="footer-bucket-url">
-          <a :href="`${config.bucketMaskUrl || config.bucketUrl}?prefix=${bucketPrefix}`">Bucket: {{ config.bucketUrl }}</a>
+        <!-- Inputs upload cachés -->
+        <input type="file" ref="fileInput" style="display:none" @change="onFileInput">
+        <input type="file" ref="dirInput" style="display:none" webkitdirectory @change="onDirInput">
+
+        <!-- Tableau -->
+        <div class="container">
+          <div class="card">
+
+            <!-- Barre pagination (AU-DESSUS de l'entête du tableau) -->
+            <div class="card-content" style="padding-bottom:0;">
+              <nav class="level is-mobile" style="margin-bottom:.5rem;">
+                <div class="level-left" style="flex-wrap:wrap;gap:.5rem;">
+                  <div class="level-item">
+                    <span class="has-text-grey">Page&nbsp;<strong>{{ currentPage }}</strong></span>
+                  </div>
+                  <div class="level-item">
+                    <span class="has-text-grey">Éléments / page</span>
+                  </div>
+                  <div class="level-item">
+                    <b-select v-model="pageSize" size="is-small" :disabled="isRefreshing">
+                      <option :value="5">5</option>
+                      <option :value="50">50</option>
+                      <option :value="100">100</option>
+                      <option :value="500">500</option>
+                    </b-select>
+                  </div>
+                </div>
+
+                <div class="level-right" style="flex-wrap:wrap;gap:.5rem;">
+                  <div class="level-item">
+                    <b-button size="is-small" type="is-light" icon-pack="mdi" icon-left="mdi-chevron-left"
+                              :disabled="previousContinuationTokens.length === 0"
+                              title="Page précédente"
+                              @click="previousPage">
+                      Précédent
+                    </b-button>
+                  </div>
+                  <div class="level-item">
+                    <b-button size="is-small" type="is-light" icon-pack="mdi" icon-right="mdi-chevron-right"
+                              :disabled="!nextContinuationToken"
+                              title="Page suivante"
+                              @click="nextPage">
+                      Suivant
+                    </b-button>
+                  </div>
+                </div>
+              </nav>
+            </div>
+
+            <div class="card-content">
+              <div class="table-wrap">
+                <b-table
+                  :data="pathContentTableData"
+                  :hoverable="true"
+                  :striped="false"
+                  :loading="isRefreshing"
+                  :mobile-cards="true"
+                  :sortable="false">
+
+                  <!-- Colonne Nom (icône + span cliquable) -->
+                  <b-table-column v-slot="props" field="name" label="Name" cell-class="name-column">
+                    <!-- Fichier -->
+                    <div v-if="props.row.type === 'content'" style="display:flex;align-items:center;gap:.5rem;">
+                      <b-icon pack="mdi" :icon="fileRowIcon(props.row)" class="name-column-icon is-smmd"></b-icon>
+                      <span class="clickable" :title="props.row.name" @click="openPreview(props.row)">{{ props.row.name }}</span>
+                    </div>
+                    <!-- Dossier -->
+                    <div v-else style="display:flex;align-items:center;gap:.5rem;">
+                      <b-icon pack="mdi" :icon="'folder'" class="name-column-icon is-smmd"></b-icon>
+                      <span class="clickable" :title="props.row.name" @click="goToPrefix(props.row.prefix)">{{ props.row.name }}</span>
+                    </div>
+                  </b-table-column>
+
+                  <!-- Colonne Taille -->
+                  <b-table-column v-slot="props" field="size" label="Size" width="140">
+                    <span v-if="props.row.type === 'content'">{{ formatBytes(props.row.size) }}</span>
+                    <span v-else>—</span>
+                  </b-table-column>
+
+                  <!-- Colonne Date (relative + hover UTC) -->
+                  <b-table-column v-slot="props" field="dateModified" label="Last Modified" width="220">
+                    <span v-if="props.row.dateModified"
+                          :title="formatDateTime_utc(props.row.dateModified)">
+                      {{ formatDateTime_relative(props.row.dateModified) }}
+                    </span>
+                    <span v-else>—</span>
+                  </b-table-column>
+
+                  <!-- Colonne Actions (kebab à droite) -->
+                  <b-table-column v-slot="props" field="__actions" label="" width="72" cell-class="is-right" header-class="is-right">
+                    <div style="display:flex;justify-content:flex-end;">
+                      <div v-if="props.row.type === 'content'" class="bb-menu" :data-key="props.row.key">
+                        <span class="bb-kebab" aria-haspopup="menu" aria-expanded="false" title="Options">
+                          <i class="mdi mdi-dots-vertical"></i>
+                        </span>
+                        <div class="bb-menu-popover">
+                          <div class="bb-menu-list">
+                            <div class="bb-menu-item" @click="onRowDownload(props.row)"><i class="mdi mdi-download"></i> Télécharger</div>
+                            <div class="bb-menu-item" @click="onRowRename(props.row)"><i class="mdi mdi-rename-outline"></i> Renommer</div>
+                            <div class="bb-menu-item" @click="onRowMetadata(props.row)"><i class="mdi mdi-information-outline"></i> Métadonnées</div>
+                            <div class="bb-menu-item danger" @click="onRowDelete(props.row)"><i class="mdi mdi-delete-outline"></i> Supprimer</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </b-table-column>
+
+                </b-table>
+              </div>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -216,8 +223,14 @@
   <script>window.process = {env: {NODE_ENV: 'production'}};</script>
   <script src="assets/vendor/buefy/1.0.1/buefy.min.js"></script>
   <script src="assets/vendor/moment/2.30.1/moment.min.js"></script>
-  <!-- fflate avant app.js -->
   <script src="assets/vendor/fflate/0.8.2/index.min.js"></script>
+
+  <!-- Shared (ordre important) -->
+  <script src="assets/js/common/detect.js"></script>
+  <script src="assets/js/common/api.js"></script>
+  <script src="assets/js/common/ui.js"></script>
+  <script src="assets/js/common/actions.js"></script>
+  <script src="assets/js/common/menu.js"></script>
 
   <!-- App -->
   <script src="assets/js/app.js"></script>

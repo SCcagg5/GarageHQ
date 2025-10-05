@@ -1,0 +1,109 @@
+/* Shared BB UI (modals + toasts) */
+.bbui-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 9999;
+}
+
+.bbui-modal {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.18);
+  max-width: min(560px, 92vw);
+  width: 560px;
+  overflow: hidden;
+  animation: bbui-pop 0.15s ease-out;
+}
+
+@keyframes bbui-pop {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bbui-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid #eef2f7;
+  font-weight: 600;
+}
+
+.bbui-body {
+  padding: 18px 20px;
+  color: #3b4450;
+  white-space: pre-wrap;
+}
+
+.bbui-foot {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  border-top: 1px solid #eef2f7;
+}
+
+.bbui-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: #eef2ff;
+  transition: background 0.1s;
+}
+
+.bbui-btn.primary {
+  background: #167df0;
+  color: #fff;
+}
+
+.bbui-btn:hover {
+  filter: brightness(0.96);
+}
+
+.bbui-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d7dbe6;
+  border-radius: 10px;
+  margin-top: 8px;
+}
+
+.bbui-toast-wrap {
+  position: fixed;
+  z-index: 9999;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bbui-toast {
+  background: #111827;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-width: min(380px, 90vw);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  animation: bbui-toast-in 0.25s ease-out;
+}
+
+@keyframes bbui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

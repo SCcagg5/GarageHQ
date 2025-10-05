@@ -23,6 +23,7 @@ services:
         max-file: "3"
   
   s3-browse:
+    image: s3-browse
     build:
         context: ./s3-browse
         dockerfile: ./Dockerfile

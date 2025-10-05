@@ -1,0 +1,38 @@
+:root {
+  --primary: #167df0;
+  --wrap-max: 1012px;
+  --h-pad: 2.5rem;
+  --v-pad: 4.5rem;
+}
+html, body { height: 100%; background: whitesmoke; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
+  color: #1f2d3d;
+}
+
+/* Top bar */
+.bar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #e9eef6; }
+.bar .wrap {
+  margin: 0 auto; max-width: var(--wrap-max);
+  padding: .75rem var(--h-pad); display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+}
+.bar-left { min-width: 0; display: flex; align-items: baseline; gap: .5rem; }
+.doc-name {
+  font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: min(50vw, 520px);
+}
+.doc-prefix { color: #64748b; font-size: .95em; }
+.doc-size { color: #6b7280; font-size: .95em; white-space: nowrap; }
+.bar-right { display: flex; align-items: center; gap: .25rem; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; color: #64748b; text-decoration: none; }
+.icon-btn:hover { background: #eef5ff; color: var(--primary); }
+.icon-btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+
+/* Viewer (largeur de référence pour le contenu et le menu) */
+.viewer { padding: var(--v-pad) max(calc(100% - max(var(--wrap-max), min(var(--wrap-max), 100%))) / 2, var(--h-pad)); }
+.viewer .bb-menu-constrain { max-width: var(--wrap-max); margin: 0 auto; }
+.markdown-body img, .markdown-body video { display: block; max-width: 100%; height: auto; margin: 1rem auto; }
+.markdown-body iframe, .markdown-body embed { display: block; width: 100%; height: calc(100vh - 6rem); border: 0; background: #fff; border-radius: 8px; }
+pre { border-radius: 10px; overflow: auto; padding: 1rem; background: #f6f8fa; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: .95rem; line-height: 1.55; }
