@@ -219,6 +219,11 @@ function langFromExt(e){ return BB.detect.langFromExt(e); }
         const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
         BB.actions.downloadObject(absKey, row.name);
       },
+      async onRowCopy(row) {
+        const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
+        const dst = await BB.actions.copyObject(absKey);
+        if (dst) await this.refresh();
+      },
       async onRowRename(row) {
         const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
         const dst = await BB.actions.renameObject(absKey);
@@ -237,6 +242,21 @@ function langFromExt(e){ return BB.detect.langFromExt(e); }
       onPrefixDetails(row) {
         const prefixAbs = ((config.rootPrefix||'') + row.prefix).replace(/\/{2,}/g,'/');
         BB.actions.showPrefixDetails(prefixAbs);
+      },
+      async onPrefixCopy(row) {
+        const prefixAbs = ((config.rootPrefix||'') + row.prefix).replace(/\/{2,}/g,'/');
+        const dst = await BB.actions.copyPrefix(prefixAbs);
+        if (dst) await this.refresh();
+      },
+      async onPrefixRename(row) {
+        const prefixAbs = ((config.rootPrefix||'') + row.prefix).replace(/\/{2,}/g,'/');
+        const dst = await BB.actions.renamePrefix(prefixAbs);
+        if (dst) await this.refresh();
+      },
+      async onPrefixDelete(row) {
+        const prefixAbs = ((config.rootPrefix||'') + row.prefix).replace(/\/{2,}/g,'/');
+        const ok = await BB.actions.deletePrefix(prefixAbs);
+        if (ok) await this.refresh();
       },
       onCurrentFolderDetails() {
         const prefixAbs = (this.bucketPrefix || '').replace(/\/{2,}/g,'/');

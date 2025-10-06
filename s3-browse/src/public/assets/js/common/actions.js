@@ -23,11 +23,12 @@
     deleteTitle: 'Supprimer',
     deletePrompt: 'Supprimer ce fichier ?',
     detailsTitle: 'Détails',
+    folderDeletePrompt: 'Supprimer ce dossier et tout son contenu ?',
     deleteOk: 'Supprimé.',
     renameOk: 'Renommé.',
     moveTrashOk: 'Déplacé dans la corbeille.',
     deleteDenied: 'Suppression non autorisée par le proxy (DELETE 405).',
-    copyDenied: 'Renommage non autorisé (COPY/PUT refusé).'
+    copyDenied: 'Copie refusée (PUT) / proxy.'
   };
 
   async function showMetadata(key) {
@@ -55,6 +56,20 @@
     try { return new Date(d).toISOString().replace('T',' ').replace('Z',' UTC'); } catch { return String(d||''); }
   }
 
+  function joinPath(base, name) {
+    base = String(base||'').replace(/\/{2,}/g,'/'); name = String(name||'');
+    if (!base.endsWith('/')) base += '/';
+    return (base + name).replace(/\/{2,}/g,'/');
+  }
+  function dirOf(absKey) {
+    const i = absKey.lastIndexOf('/'); return i === -1 ? '' : absKey.slice(0, i+1);
+  }
+  function ensurePrefix(p) {
+    p = (p||'').replace(/\/{2,}/g,'/').replace(/^\//,'');
+    return p.endsWith('/') ? p : (p + '/');
+  }
+  function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
   async function showFileDetails(absKey) {
     const ui = getUI();
     try {
@@ -79,7 +94,7 @@
     }
   }
 
-    async function showPrefixDetails(prefixAbs) {
+  async function showPrefixDetails(prefixAbs) {
     const ui = getUI();
     try {
       const stat = await BB.api.stats(prefixAbs);
@@ -122,6 +137,72 @@
     }
   }
 
+  // ----- DOSSIER (prefix) : copier / renommer / supprimer -----
+  async function renamePrefix(prefixAbs) {
+    const ui = getUI();
+    const p = ensurePrefix(prefixAbs);
+    const last = p.split('/').filter(Boolean).pop() || '';
+    const parent = p.slice(0, p.length - last.length - 1); // garde le slash final
+    const newName = await ui.prompt({ title: labels.renameTitle, message: labels.renamePrompt, defaultValue: last || 'nouveau-dossier' });
+    if (!newName || newName === last) return false;
+    const dst = ensurePrefix(parent + newName);
+    try {
+      await BB.api.rename({ src: p, dst, isPrefix: true });
+      ui.toast(labels.renameOk);
+      return dst;
+    } catch (e) {
+      await ui.alert({ title: labels.renameTitle, message: String(e) });
+      return false;
+    }
+  }
+
+  async function copyPrefix(prefixAbs) {
+    const ui = getUI();
+    const src = ensurePrefix(prefixAbs);
+    const last = src.split('/').filter(Boolean).pop() || '';
+    const parent = src.slice(0, src.length - last.length - 1);
+    const newName = await ui.prompt({ title: 'Copier le dossier', message: 'Nouveau nom :', defaultValue: last + '-copy' });
+    if (!newName) return false;
+    const dst = ensurePrefix(parent + '/' + newName);
+
+    try {
+      const keys = await BB.api.listAll(src);
+      const rx = new RegExp('^' + escapeRx(src));
+      const toCopy = keys.filter(k => !k.endsWith('/')); // ignore markers éventuels
+      const concurrency = 8;
+      let done = 0;
+      const queue = toCopy.slice();
+      const runOne = async () => {
+        const k = queue.shift(); if (!k) return;
+        const rel = k.replace(rx, '');
+        const out = dst + rel;
+        try { await BB.api.copy(k, out); } catch (e) { console.error('copy fail', k, '->', out, e); }
+        done++;
+        if (queue.length) await runOne();
+      };
+      await Promise.all(Array.from({length: Math.min(concurrency, queue.length)}, runOne));
+      ui.toast(`Copie dossier OK (${done} objets)`);
+      return dst;
+    } catch (e) {
+      await ui.alert({ title: 'Copier le dossier', message: String(e) });
+      return false;
+    }
+  }
+
+  async function deletePrefix(prefixAbs) {
+    const ui = getUI();
+    const okc = await ui.confirm({ title: labels.deleteTitle, message: labels.folderDeletePrompt });
+    if (!okc) return false;
+    try {
+      const { deleted } = await BB.api.deletePrefix(ensurePrefix(prefixAbs));
+      ui.toast(`Supprimé (${deleted} objets)`);
+      return true;
+    } catch (e) {
+      await ui.alert({ title: labels.deleteTitle, message: String(e) });
+      return false;
+    }
+  }
+
   async function renameObject(absKey) {
     const ui = getUI();
     const cur = absKey.split('/').pop() || absKey;
@@ -130,15 +211,37 @@
     if (!newName || newName === cur) return false;
     const dst = base + newName;
     try {
-      await BB.api.copy(absKey, dst);
-    } catch {
-      await ui.alert({ title: labels.renameTitle, message: labels.copyDenied });
-      return false;
+      await BB.api.rename({ src: absKey, dst, isPrefix: false });
+    } catch (e) {
+      // fallback copy+delete (ancien comportement)
+      try {
+        await BB.api.copy(absKey, dst);
+        const ok = await BB.api.del(absKey);
+        if (!ok) await moveToTrash(absKey);
+      } catch (ee) {
+        await ui.alert({ title: labels.renameTitle, message: String(ee||e||labels.copyDenied) });
+        return false;
+      }
     }
-    const ok = await BB.api.del(absKey);
-    if (!ok) await moveToTrash(absKey);
     ui.toast(labels.renameOk);
     return dst;
+  }
+
+  async function copyObject(absKey) {
+    const ui = getUI();
+    const cur = absKey.split('/').pop() || absKey;
+    const base = dirOf(absKey);
+    const newName = await ui.prompt({ title: 'Copier', message: `Nouveau nom dans ${base}`, defaultValue: cur });
+    if (!newName || newName === cur) return false;
+    const dst = base + newName;
+    try {
+      await BB.api.copy(absKey, dst);
+      ui.toast('Copie effectuée.');
+      return dst;
+    } catch (e) {
+      await ui.alert({ title: 'Copier', message: String(e || labels.copyDenied) });
+      return false;
+    }
   }
 
   async function deleteObject(absKey) {
@@ -181,6 +284,8 @@
     // rétro-compat: laisser showMetadata pointer vers le nouveau rendu fichier
     showMetadata: showFileDetails,
     // existants
-    renameObject, deleteObject, downloadObject, moveToTrash
+    renameObject, copyObject, deleteObject, downloadObject, moveToTrash,
+    // Dossier
+    renamePrefix, copyPrefix, deletePrefix
   };
 })();

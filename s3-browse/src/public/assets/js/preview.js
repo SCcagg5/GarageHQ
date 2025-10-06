@@ -89,6 +89,11 @@ document.getElementById('pv-download').addEventListener('click', () => {
   const key = currentKey();
   BB.actions.downloadObject(key, key.split('/').pop());
 });
+document.getElementById('pv-copy').addEventListener('click', async () => {
+  const key = currentKey();
+  const dst = await BB.actions.copyObject(key);
+  if (dst) await render();
+});
 document.getElementById('pv-rename').addEventListener('click', async () => {
   const key = currentKey();
   const dst = await BB.actions.renameObject(key);

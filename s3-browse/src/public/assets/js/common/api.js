@@ -64,6 +64,24 @@
       } while (token);
       return out;
     },
+    async rename({ src, dst, isPrefix }) {
+      const res = await fetch('/api/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src, dst, isPrefix: !!isPrefix })
+      });
+      if (!res.ok) throw new Error(`RENAME ${res.status}`);
+      return await res.json(); // { moved, tookMs }
+    },
+    async deletePrefix(prefixAbs) {
+      const res = await fetch('/api/delete-prefix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: prefixAbs })
+      });
+      if (!res.ok) throw new Error(`DELETE-PREFIX ${res.status}`);
+      return await res.json(); // { deleted, tookMs }
+    },
     async stats(prefixAbs = '') {
       const p = String(prefixAbs || '').replace(/^\/+/, '');
       const res = await fetch(`/api/stats?prefix=${encodeURIComponent(p)}`);
