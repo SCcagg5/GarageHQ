@@ -22,7 +22,7 @@
     renamePrompt: 'Nouveau nom :',
     deleteTitle: 'Supprimer',
     deletePrompt: 'Supprimer ce fichier ?',
-    metaTitle: 'Métadonnées',
+    detailsTitle: 'Détails',
     deleteOk: 'Supprimé.',
     renameOk: 'Renommé.',
     moveTrashOk: 'Déplacé dans la corbeille.',
@@ -38,6 +38,87 @@
       await ui.alert({ title: `${labels.metaTitle} — ${key.split('/').pop()}`, message: text });
     } catch (e) {
       await ui.alert({ title: labels.metaTitle, message: String(e) });
+    }
+  }
+
+  function fmtBytes(n) {
+    const KB=1024, MB=1048576, GB=1073741824, TB=1099511627776;
+    if (!Number.isFinite(n)) return '-';
+    if (n<KB) return `${n} B`;
+    if (n<MB) return `${(n/KB).toFixed(0)} KB`;
+    if (n<GB) return `${(n/MB).toFixed(2)} MB`;
+    if (n<TB) return `${(n/GB).toFixed(2)} GB`;
+    return `${(n/TB).toFixed(2)} TB`;
+  }
+
+  function fmtDate(d) {
+    try { return new Date(d).toISOString().replace('T',' ').replace('Z',' UTC'); } catch { return String(d||''); }
+  }
+
+  async function showFileDetails(absKey) {
+    const ui = getUI();
+    try {
+      const { mime, size, headers } = await BB.api.head(absKey);
+      const name = absKey.split('/').pop() || absKey;
+      const last = headers['last-modified'] || headers['Last-Modified'] || '';
+      const etag = headers['etag'] || headers['ETag'] || '';
+      const lines = [
+        `Nom: ${decodeURIComponent(name)}`,
+        `Chemin: ${absKey}`,
+        `Taille: ${fmtBytes(size)} (${size||0} octets)`,
+        `Type: ${mime || '—'}`,
+        `ETag: ${etag || '—'}`,
+        `Dernière modification: ${last ? fmtDate(last) : '—'}`,
+        '',
+        '— En-têtes HTTP —',
+        JSON.stringify(headers, null, 2)
+      ];
+      await ui.alert({ title: `${labels.detailsTitle} — fichier`, message: lines.join('\n') });
+    } catch (e) {
+      await ui.alert({ title: labels.detailsTitle, message: String(e) });
+    }
+  }
+
+    async function showPrefixDetails(prefixAbs) {
+    const ui = getUI();
+    try {
+      const stat = await BB.api.stats(prefixAbs);
+      // L’API renvoie des champs en minuscules/camelCase
+      const bt = stat.byType || {};
+      const norm = (a)=>({ count: (a && a.count) || 0, bytes: (a && a.bytes) || 0 });
+      const img = norm(bt.image), vid = norm(bt.video), aud = norm(bt.audio);
+      const doc = norm(bt.doc),    arc = norm(bt.archive), code = norm(bt.code), oth = norm(bt.other);
+
+      // Top dossiers (tri client)
+      const folders = Object.entries(stat.byFolder || {}).map(([name, a]) => [name, norm(a)]);
+      folders.sort((a,b)=> (b[1].bytes - a[1].bytes) || a[0].localeCompare(b[0]));
+      const topN = folders.slice(0, 10);
+
+      const lines = [
+        `Préfixe: ${prefixAbs || '/'}`,
+        `Objets: ${stat.count}`,
+        `Taille totale: ${fmtBytes(stat.totalBytes)} (${stat.totalBytes} octets)`,
+        `Plus ancien: ${stat.oldest ? fmtDate(stat.oldest) : '—'}`,
+        `Plus récent: ${stat.newest ? fmtDate(stat.newest) : '—'}`,
+        '',
+        '— Par type —',
+        `images: ${img.count} — ${fmtBytes(img.bytes)}`,
+        `vidéos: ${vid.count} — ${fmtBytes(vid.bytes)}`,
+        `audios: ${aud.count} — ${fmtBytes(aud.bytes)}`,
+        `documents: ${doc.count} — ${fmtBytes(doc.bytes)}`,
+        `archives: ${arc.count} — ${fmtBytes(arc.bytes)}`,
+        `code: ${code.count} — ${fmtBytes(code.bytes)}`,
+        `autres: ${oth.count} — ${fmtBytes(oth.bytes)}`,
+        '',
+        '— Dossiers les plus volumineux —',
+        ...(topN.length ? topN.map(([name,a],i)=> `${String(i+1).padStart(2,' ')}. ${name}  ${fmtBytes(a.bytes)}  (${a.count} objets)`)
+                        : ['(aucun sous-dossier)']),
+        '',
+        `Calculé en ${stat.tookMs} ms`
+      ];
+      await ui.alert({ title: `${labels.detailsTitle} — dossier`, message: lines.join('\n') });
+    } catch (e) {
+      await ui.alert({ title: labels.detailsTitle, message: String(e) });
     }
   }
 
@@ -94,6 +175,12 @@
 
   BB.actions = {
     labels,
-    showMetadata, renameObject, deleteObject, downloadObject, moveToTrash
+    // Détails
+    showFileDetails,
+    showPrefixDetails,
+    // rétro-compat: laisser showMetadata pointer vers le nouveau rendu fichier
+    showMetadata: showFileDetails,
+    // existants
+    renameObject, deleteObject, downloadObject, moveToTrash
   };
 })();

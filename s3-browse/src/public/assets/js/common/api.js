@@ -63,6 +63,12 @@
         const nt = doc.querySelector('ListBucketResult > NextContinuationToken'); token = nt && nt.textContent;
       } while (token);
       return out;
+    },
+    async stats(prefixAbs = '') {
+      const p = String(prefixAbs || '').replace(/^\/+/, '');
+      const res = await fetch(`/api/stats?prefix=${encodeURIComponent(p)}`);
+      if (!res.ok) throw new Error(`STATS ${res.status}`);
+      return await res.json();
     }
   };
 

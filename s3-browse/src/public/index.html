@@ -79,6 +79,10 @@
                   <i class="mdi mdi-archive-arrow-down-outline"></i>
                   <span style="margin-left:.5rem;">Download all files</span>
                 </b-dropdown-item>
+                <b-dropdown-item @click="onCurrentFolderDetails">
+                  <i class="mdi mdi-information-outline"></i>
+                  <span style="margin-left:.5rem;">Détails du dossier</span>
+                  </b-dropdown-item>
               </b-dropdown>
 
               <b-dropdown position="is-bottom-left" :mobile-modal="false" append-to-body aria-role="menu">
@@ -190,8 +194,8 @@
                   </b-table-column>
 
                   <!-- Colonne Actions (kebab à droite) -->
-                  <b-table-column v-slot="props" field="__actions" label="" width="72" cell-class="is-right" header-class="is-right">
-                    <div style="display:flex;justify-content:flex-end;">
+                <b-table-column v-slot="props" field="__actions" label="" width="72" cell-class="is-right" header-class="is-right">
+                  <div style="display:flex;justify-content:flex-end;">
                       <div v-if="props.row.type === 'content'" class="bb-menu" :data-key="props.row.key">
                         <span class="bb-kebab" aria-haspopup="menu" aria-expanded="false" title="Options">
                           <i class="mdi mdi-dots-vertical"></i>
@@ -200,8 +204,18 @@
                           <div class="bb-menu-list">
                             <div class="bb-menu-item" @click="onRowDownload(props.row)"><i class="mdi mdi-download"></i> Télécharger</div>
                             <div class="bb-menu-item" @click="onRowRename(props.row)"><i class="mdi mdi-rename-outline"></i> Renommer</div>
-                            <div class="bb-menu-item" @click="onRowMetadata(props.row)"><i class="mdi mdi-information-outline"></i> Métadonnées</div>
+                            <div class="bb-menu-item" @click="onRowDetails(props.row)"><i class="mdi mdi-information-outline"></i> Détails</div>
                             <div class="bb-menu-item danger" @click="onRowDelete(props.row)"><i class="mdi mdi-delete-outline"></i> Supprimer</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-else class="bb-menu" :data-prefix="props.row.prefix">
+                        <span class="bb-kebab" aria-haspopup="menu" aria-expanded="false" title="Options">
+                          <i class="mdi mdi-dots-vertical"></i>
+                        </span>
+                        <div class="bb-menu-popover">
+                          <div class="bb-menu-list">
+                            <div class="bb-menu-item" @click="onPrefixDetails(props.row)"><i class="mdi mdi-information-outline"></i> Détails</div>
                           </div>
                         </div>
                       </div>

@@ -224,14 +224,23 @@ function langFromExt(e){ return BB.detect.langFromExt(e); }
         const dst = await BB.actions.renameObject(absKey);
         if (dst) await this.refresh();
       },
-      onRowMetadata(row) {
-        const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
-        BB.actions.showMetadata(absKey);
+      onRowDetails(row) {
+       const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
+        BB.actions.showFileDetails(absKey);
       },
       async onRowDelete(row) {
         const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
         const ok = await BB.actions.deleteObject(absKey);
         if (ok) await this.refresh();
+      },
+
+      onPrefixDetails(row) {
+        const prefixAbs = ((config.rootPrefix||'') + row.prefix).replace(/\/{2,}/g,'/');
+        BB.actions.showPrefixDetails(prefixAbs);
+      },
+      onCurrentFolderDetails() {
+        const prefixAbs = (this.bucketPrefix || '').replace(/\/{2,}/g,'/');
+        BB.actions.showPrefixDetails(prefixAbs);
       },
 
       /* Listing (server-side) */

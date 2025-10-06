@@ -99,7 +99,7 @@ document.getElementById('pv-rename').addEventListener('click', async () => {
     await render();
   }
 });
-document.getElementById('pv-metadata').addEventListener('click', () => BB.actions.showMetadata(currentKey()));
+document.getElementById('pv-details').addEventListener('click', () => BB.actions.showFileDetails(currentKey()));
 document.getElementById('pv-delete').addEventListener('click', async () => {
   const result = await BB.actions.deleteObject(currentKey());
   if (result) history.back();
