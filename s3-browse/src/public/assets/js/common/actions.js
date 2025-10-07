@@ -22,7 +22,7 @@
     renamePrompt: 'Nouveau nom :',
     deleteTitle: 'Supprimer',
     deletePrompt: 'Supprimer ce fichier ?',
-    detailsTitle: 'Détails',
+    metaTitle: 'Détails — fichier',
     folderDeletePrompt: 'Supprimer ce dossier et tout son contenu ?',
     deleteOk: 'Supprimé.',
     renameOk: 'Renommé.',
@@ -31,16 +31,99 @@
     copyDenied: 'Copie refusée (PUT) / proxy.'
   };
 
-  async function showMetadata(key) {
+  // --- utils de format ---
+  function escapeHTML(s=''){ const t=document.createElement('span'); t.textContent=String(s); return t.innerHTML; }
+  function formatBytes(size){
+    if (!Number.isFinite(size)) return '-';
+    const pow2_10 = 1024
+    const KB=1 * pow2_10, MB=KB* pow2_10, GB=MB * pow2_10, TB=GB * pow2_10;
+    if (size < KB) return size + ' B';
+    if (size < MB) return (size/KB).toFixed(size<10*KB?1:0) + ' KB';
+    if (size < GB) return (size/MB).toFixed(2) + ' MB';
+    if (size < TB) return (size/GB).toFixed(2) + ' GB';
+    return (size/TB).toFixed(2) + ' TB';
+  }
+  function iconFor(key, mime){
+    const e = (key.split('.').pop() || '').toLowerCase();
+    if (BB.detect.isImageExt(e)) return 'file-image-outline';
+    if (BB.detect.isVideoExt(e)) return 'file-video-outline';
+    if (BB.detect.isAudioExt(e)) return 'file-music-outline';
+    if (BB.detect.isPdfExt(e)) return 'file-pdf-box';
+    if (BB.detect.isCodeExt(e)) return 'file-code-outline';
+    return 'file-outline';
+  }
+  function typefor(key, mime){
+    type = BB.detect.resolveType(key, mime);
+    if (type == 'code') {
+      return BB.detect.resolveLang(key, mime);
+    }
+    return type;
+  }
+  function formatDateTime_utc(d){ return d ? moment(d).utc().format('YYYY-MM-DD HH:mm:ss [UTC]') : ''; }
+
+  async function showFileDetails(absKey) {
     const ui = getUI();
     try {
-      const { headers } = await BB.api.head(key);
-      const text = JSON.stringify(headers, null, 2);
-      await ui.alert({ title: `${labels.metaTitle} — ${key.split('/').pop()}`, message: text });
+      const { headers, size, mime } = await BB.api.head(absKey);
+      const group3 = n => (n < 0 ? '-' : '') + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
+      const name = absKey.split('/').pop() || absKey;
+      const prefix = absKey.slice(0, -(name.length)).replace(/\/$/, '');
+      const lastMod = headers['last-modified'] || headers['Last-Modified'] || '';
+      const lastStr = lastMod ? (window.moment ? moment(new Date(lastMod)).fromNow() : new Date(lastMod).toLocaleString()) : '—';
+      const eTag = headers['etag'] || headers['ETag'] || '';
+      const ct = headers['content-type'] || headers['Content-Type'] || mime || '';
+      const rawUrl = BB.api.urlForKey(absKey, { mask: true });
+      const icon = iconFor(name, ct);
+      const type = typefor(name, ct);
+      const headersStr = JSON.stringify(headers, null, 2).replaceAll('\\"', '');
+      let metaHTML = '';
+      try {
+        if (BB.render && BB.render.renderCode) {
+          const preNode = BB.render.renderCode(headersStr, 'json', in_pre = false);
+          metaHTML = preNode.outerHTML; // code déjà highlighté
+        }
+      } catch {}
+      if (!metaHTML) {
+        // fallback si hljs absent
+        const esc = escapeHTML(headersStr);
+        metaHTML = `<pre class="bb-pre"><code class="language-json">${esc}</code></pre>`;
+      }
+
+      const html = `
+        <div class="bb-details">
+          <div class="bb-details-head">
+            <i class="mdi mdi-${icon}"></i>
+            <div class="bb-details-titles">
+              <div class="bb-details-name" title="${escapeHTML(name)}">
+                <div class="bb-details-prefix" title="${escapeHTML(prefix)}">${prefix ? escapeHTML(prefix) + '/' : ''}
+                </div>
+                ${escapeHTML(name)}
+              </div>
+            </div>
+            <a class="icon-btn" title="Ouvrir l’original" rel="noopener" href="${escapeHTML(rawUrl)}">
+              <i class="mdi mdi-open-in-new small-icon"></i>
+            </a>
+            <a class="icon-btn" title="Download" rel="noopener" href="${escapeHTML(rawUrl)}" download="${escapeHTML(name)}">
+              <i class="mdi mdi-download small-icon"></i>
+            </a>
+          </div>
+          <div class="bb-details-grid">
+            <div class="kv-row"><div class="kv-k">Taille</div><div class="kv-v">${formatBytes(size)} <span class="kv-muted">(${group3(size)} octets)</span></div></div>
+            <div class="kv-row"><div class="kv-k">Dernière modification</div><div class="kv-v">${escapeHTML(lastStr)}<span class="kv-muted">(${formatDateTime_utc(lastMod)})</span></div></div>
+            <div class="kv-row"><div class="kv-k">Type</div><div class="kv-v">${escapeHTML(type || '—')}</div></div>
+          </div>
+          <h4 class="bb-details-subtitle">Metadata</h4>
+          ${metaHTML}
+        </div>
+      `;
+      await ui.alert({ title: labels.metaTitle, html });
     } catch (e) {
       await ui.alert({ title: labels.metaTitle, message: String(e) });
     }
   }
+
+  // Compat: l’ancien menu “Métadonnées” peut pointer ici
+  async function showMetadata(key) { return showFileDetails(key); }
 
   function fmtBytes(n) {
     const KB=1024, MB=1048576, GB=1073741824, TB=1099511627776;
@@ -70,29 +153,29 @@
   }
   function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
 
-  async function showFileDetails(absKey) {
-    const ui = getUI();
-    try {
-      const { mime, size, headers } = await BB.api.head(absKey);
-      const name = absKey.split('/').pop() || absKey;
-      const last = headers['last-modified'] || headers['Last-Modified'] || '';
-      const etag = headers['etag'] || headers['ETag'] || '';
-      const lines = [
-        `Nom: ${decodeURIComponent(name)}`,
-        `Chemin: ${absKey}`,
-        `Taille: ${fmtBytes(size)} (${size||0} octets)`,
-        `Type: ${mime || '—'}`,
-        `ETag: ${etag || '—'}`,
-        `Dernière modification: ${last ? fmtDate(last) : '—'}`,
-        '',
-        '— En-têtes HTTP —',
-        JSON.stringify(headers, null, 2)
-      ];
-      await ui.alert({ title: `${labels.detailsTitle} — fichier`, message: lines.join('\n') });
-    } catch (e) {
-      await ui.alert({ title: labels.detailsTitle, message: String(e) });
-    }
-  }
+  // async function showFileDetails(absKey) {
+  //   const ui = getUI();
+  //   try {
+  //     const { mime, size, headers } = await BB.api.head(absKey);
+  //     const name = absKey.split('/').pop() || absKey;
+  //     const last = headers['last-modified'] || headers['Last-Modified'] || '';
+  //     const etag = headers['etag'] || headers['ETag'] || '';
+  //     const lines = [
+  //       `Nom: ${decodeURIComponent(name)}`,
+  //       `Chemin: ${absKey}`,
+  //       `Taille: ${fmtBytes(size)} (${size||0} octets)`,
+  //       `Type: ${mime || '—'}`,
+  //       `ETag: ${etag || '—'}`,
+  //       `Dernière modification: ${last ? fmtDate(last) : '—'}`,
+  //       '',
+  //       '— En-têtes HTTP —',
+  //       JSON.stringify(headers, null, 2)
+  //     ];
+  //     await ui.alert({ title: `${labels.detailsTitle} — fichier`, message: lines.join('\n') });
+  //   } catch (e) {
+  //     await ui.alert({ title: labels.detailsTitle, message: String(e) });
+  //   }
+  // }
 
   async function showPrefixDetails(prefixAbs) {
     const ui = getUI();
@@ -278,12 +361,9 @@
 
   BB.actions = {
     labels,
-    // Détails
+    showMetadata, 
     showFileDetails,
-    showPrefixDetails,
-    // rétro-compat: laisser showMetadata pointer vers le nouveau rendu fichier
-    showMetadata: showFileDetails,
-    // existants
+    showPrefixDetails, 
     renameObject, copyObject, deleteObject, downloadObject, moveToTrash,
     // Dossier
     renamePrefix, copyPrefix, deletePrefix

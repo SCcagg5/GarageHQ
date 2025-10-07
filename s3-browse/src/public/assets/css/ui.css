@@ -65,7 +65,7 @@ th.is-right, td.is-right { text-align: right; }
 .bb-modal {
   background: var(--bb-bg);
   color: var(--bb-text);
-  width: min(560px, calc(100vw - 32px));
+  width: min(800px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   border-radius: 12px;
   box-shadow: 0 20px 45px rgba(0,0,0,.18);
@@ -128,3 +128,31 @@ th.is-right, td.is-right { text-align: right; }
   pointer-events: auto; max-width: min(420px, calc(100vw - 24px));
 }
 .bb-toast.is-show { opacity: 1; transform: translateY(0); }
+/* ===== Détails fichier ===== */
+.bb-modal-html .bb-details { display: grid; gap: 12px; }
+.bb-details-head { display: flex; align-items: center; gap: 10px; }
+.bb-details-head .mdi { font-size: 28px; color: var(--bb-muted); }
+.bb-details-name { font-weight: 600; line-height: 1.25; word-break: break-word; }
+.bb-details-prefix { color: var(--bb-muted); font-size: .95em; word-break: break-all; display: inline-block;}
+
+.bb-details-grid { display: grid; gap: 6px; margin-top: 4px; }
+.kv-row { display: grid; grid-template-columns: 230px 1fr; gap: 10px; align-items: baseline; }
+.kv-k { color: var(--bb-muted); }
+.kv-v { overflow-wrap: anywhere; }
+.kv-muted { color: #6b7280; font-size: .9em; margin-left: .35rem; }
+
+.bb-chip {
+  display: inline-block; border: 1px solid var(--bb-border); border-radius: 999px;
+  padding: .15rem .5rem; font-size: .85rem; background: #fff;
+}
+
+.bb-details-actions { display: flex; gap: 8px; margin-top: 6px; }
+.bb-details-subtitle { margin: 2px 0 0; font-size: 0.95rem; color: var(--bb-muted); }
+.meta-pre { max-height: 40vh; overflow: auto; }
+@media (max-width: 600px) {
+  .kv-row { grid-template-columns: 120px 1fr; }
+}
+
+.small-icon {
+  font-size: 1.25em !important;
+}

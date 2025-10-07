@@ -159,6 +159,9 @@
     if (isAudioExt(e)) return 'audio';
     if (isPdfExt(e)) return 'pdf';
     if (isMarkdownExt(e)) return 'markdown';
+    if (isSpreadsheetExt(e)) return 'spreadsheet';
+    if (isPresentationExt(e)) return 'presentation';
+    if (isArchiveExt(e)) return 'archive';
     if (isCodeExt(e)) return 'code';
     // MIME fallback:
     if (isImageMime(mime)) return 'image';

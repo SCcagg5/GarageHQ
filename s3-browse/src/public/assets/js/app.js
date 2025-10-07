@@ -229,8 +229,8 @@ function langFromExt(e){ return BB.detect.langFromExt(e); }
         const dst = await BB.actions.renameObject(absKey);
         if (dst) await this.refresh();
       },
-      onRowDetails(row) {
-       const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
+      onRowMetadata(row) {
+        const absKey = ((config.rootPrefix||'') + (this.pathPrefix||'') + row.name).replace(/\/{2,}/g,'/');
         BB.actions.showFileDetails(absKey);
       },
       async onRowDelete(row) {
@@ -268,60 +268,76 @@ function langFromExt(e){ return BB.detect.langFromExt(e); }
         if (this.isRefreshing) return;
         this.isRefreshing = true;
         try {
-          let url = `${config.bucketUrl}?list-type=2&delimiter=/&prefix=${encodePath(this.bucketPrefix)}`;
-          if (this.pageSize) url += `&max-keys=${this.pageSize}`;
-          if (this.continuationToken) url += `&continuation-token=${encodePath(this.continuationToken)}`;
+          const prefix = this.bucketPrefix || '';
+          let url = `/api/list?prefix=${encodeURIComponent(prefix)}&delimiter=/&max=${this.pageSize || 50}`;
+
+          // Exclure la corbeille côté back pour des pages "pleines"
+          if (BB.cfg.trashPrefix) {
+            url += `&exclude=${encodeURIComponent(BB.cfg.trashPrefix)}`;
+          }
+
+          if (this.continuationToken) {
+            url += `&continuationToken=${encodeURIComponent(this.continuationToken)}`;
+          }
+
           const resp = await fetch(url);
-          const xml = await resp.text();
-          const listBucketResult = new DOMParser().parseFromString(xml, "text/xml");
-          if (!listBucketResult.querySelector('ListBucketResult > Delimiter')) throw Error(`Bucket URL ${config.bucketUrl} is not a valid bucket API URL, response does not contain <ListBucketResult><Delimiter> tag.`);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
 
-          const nextTok = listBucketResult.querySelector("ListBucketResult > NextContinuationToken");
-          this.nextContinuationToken = nextTok && nextTok.textContent;
+          this.nextContinuationToken = data.nextContinuationToken || undefined;
 
-          const commonPrefixes = [...listBucketResult.querySelectorAll("ListBucketResult > CommonPrefixes")]
-            .map(tag => ({ prefix: tag.querySelector('Prefix').textContent.removePrefix(config.rootPrefix) }))
-            .filter(p => !config.keyExcludePatterns.find(rx => rx.test(p.prefix.removePrefix(config.rootPrefix))))
-            .map(p => ({ type:'prefix', name: p.prefix.split('/').slice(-2)[0] + '/', prefix: p.prefix, size: 0, dateModified: null }));
-
-          const contents = [...listBucketResult.querySelectorAll("ListBucketResult > Contents")]
-            .map(tag => ({
-              key: tag.querySelector('Key').textContent,
-              size: parseInt(tag.querySelector('Size').textContent),
-              dateModified: new Date(tag.querySelector('LastModified').textContent)
-            }))
-            .filter(c => c.key !== decodeURI(this.bucketPrefix))
-            .filter(c => !config.keyExcludePatterns.find(rx => rx.test(c.key.removePrefix(config.rootPrefix))))
-            .map(c => {
-              if (c.key.endsWith('/') && !c.size) {
-                return {
-                  type:'prefix',
-                  name: c.key.split('/').slice(-2)[0] + '/',
-                  prefix: c.key.removePrefix(config.rootPrefix),
-                  size: 0,
-                  dateModified: c.dateModified || null
-                };
+          // Mapper vers le format UI
+          const items = (data.items || []).map(it => {
+            if (it.type === 'prefix') {
+              // prefix absolu renvoyé par le back -> relativiser au rootPrefix pour la navigation UI
+              const relPrefix = (it.prefix || '').replace(new RegExp('^' + (BB.cfg.rootPrefix || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+              return {
+                type: 'prefix',
+                name: it.name || (relPrefix.split('/').slice(-2)[0] + '/'),
+                prefix: relPrefix,
+                size: 0,
+                dateModified: null
+              };
+            } else {
+              const key = it.key || '';
+              const url = `${(BB.cfg.bucketUrl || '/s3').replace(/\/*$/, '')}/${BB.detect.encodePath(key)}`;
+              let installUrl;
+              if (url.endsWith('/manifest.plist') && (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+                installUrl = `itms-services://?action=download-manifest&url=${BB.detect.encodePath(url)}`;
               }
-              const url = `${(config.bucketUrl || '/s3').replace(/\/*$/, '')}/${encodePath(c.key)}`;
-              let installUrl; if (url.endsWith('/manifest.plist') && devicePlatform_iOS()) installUrl = `itms-services://?action=download-manifest&url=${encodePath(url)}`;
-              return { type:'content', name: c.key.split('/').slice(-1)[0], size: c.size, dateModified: c.dateModified, key: c.key, url, installUrl };
-            });
+              return {
+                type: 'content',
+                name: it.name || key.split('/').pop(),
+                key,
+                size: it.size || 0,
+                dateModified: it.lastModified ? new Date(it.lastModified) : null,
+                url,
+                installUrl
+              };
+            }
+          });
 
-          // Fusion/dédoublonnage
+          // Filtre de sécurité local (si tu gardes d'autres patterns côté front)
+          const filtered = items.filter(row => {
+            const keyLike = row.type === 'prefix' ? row.prefix : row.key;
+            if (!keyLike) return true;
+            return !BB.cfg.keyExcludePatterns.find(rx => rx.test(String(keyLike).replace(/^\//,'')));
+          });
+
+          // Fusion/dédoublonnage local (sécurité)
           const map = new Map();
-          for (const it of [...commonPrefixes, ...contents]) {
+          for (const it of filtered) {
             const id = (it.type === 'prefix' ? 'P:' + it.prefix : 'F:' + it.key);
             if (!map.has(id)) map.set(id, it);
-            else {
-              const prev = map.get(id);
-              if (it.type === 'prefix' && it.dateModified && !prev.dateModified) map.set(id, it);
-            }
           }
           this.pathContentTableData = Array.from(map.values());
         } catch (error) {
           BB.ui.toast((error && (error.message || error))?.toString() || 'Error');
-        } finally { this.isRefreshing = false; }
+        } finally {
+          this.isRefreshing = false;
+        }
       },
+
 
       /* ===== Format helpers ===== */
       formatBytes(size) {

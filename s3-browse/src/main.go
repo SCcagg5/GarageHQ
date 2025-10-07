@@ -15,10 +15,48 @@ import (
         "strconv"
         "strings"
         "time"
-
+		"encoding/base64"
         "github.com/aws/aws-sdk-go-v2/aws"
         v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
+
+
+type listBucketResultV2 struct {
+    XMLName               xml.Name `xml:"ListBucketResult"`
+    Name                  string   `xml:"Name"`
+    Prefix                string   `xml:"Prefix"`
+    Delimiter             string   `xml:"Delimiter"`
+    MaxKeys               int      `xml:"MaxKeys"`
+    IsTruncated           bool     `xml:"IsTruncated"`
+    NextContinuationToken string   `xml:"NextContinuationToken"`
+    CommonPrefixes        []struct{ 
+		Prefix string `xml:"Prefix"` 
+		} `xml:"CommonPrefixes"`
+    Contents              []struct {
+        Key          string    `xml:"Key"`
+        LastModified time.Time `xml:"LastModified"`
+        Size         int64     `xml:"Size"`
+        ETag         string    `xml:"ETag"`
+    } `xml:"Contents"`
+}
+
+type listItemJSON struct {
+    Type         string     `json:"type"` // "prefix" | "content"
+    Name         string     `json:"name"`
+    Prefix       string     `json:"prefix,omitempty"`
+    Key          string     `json:"key,omitempty"`
+    Size         int64      `json:"size,omitempty"`
+    LastModified *time.Time `json:"lastModified,omitempty"`
+    ETag         string     `json:"etag,omitempty"`
+}
+
+type listResponseJSON struct {
+    Prefix                string         `json:"prefix"`
+    Delimiter             string         `json:"delimiter"`
+    Items                 []listItemJSON `json:"items"`
+    NextContinuationToken string         `json:"nextContinuationToken,omitempty"`
+    IsTruncated           bool           `json:"isTruncated"`
+}
 
 type cfg struct {
         Endpoint string
@@ -684,6 +722,275 @@ func (p *proxy) handleDeletePrefix(w http.ResponseWriter, r *http.Request) {
         _ = json.NewEncoder(w).Encode(out)
 }
 
+type ffCursor struct {
+    Phase string `json:"p"`           // "dir" | "file"
+    After string `json:"a,omitempty"` // relatif au prefix: "scripts/" ou "file.txt"
+}
+
+
+func encodeCursor(c ffCursor) string {
+	b, _ := json.Marshal(c)
+	return strings.TrimRight(base64.URLEncoding.EncodeToString(b), "=")
+}
+func decodeCursor(s string) (ffCursor, error) {
+    if s == "" {
+        return ffCursor{Phase: "dir"}, nil
+    }
+    if m := len(s) % 4; m != 0 {
+        s += strings.Repeat("=", 4-m)
+    }
+    var c ffCursor
+    b, err := base64.URLEncoding.DecodeString(s)
+    if err != nil {
+        return ffCursor{}, err
+    }
+    if err := json.Unmarshal(b, &c); err != nil {
+        return ffCursor{}, err
+    }
+    if c.Phase == "" {
+        c.Phase = "dir"
+    }
+    return c, nil
+}
+
+func (p *proxy) s3ListPage(ctx context.Context, prefix, delimiter, startAfter string, maxKeys int) (*listBucketResultV2, error) {
+    if delimiter == "" { delimiter = "/" }
+    if maxKeys <= 0 || maxKeys > 1000 { maxKeys = 1000 }
+
+    q := url.Values{}
+    q.Set("list-type", "2")
+    q.Set("delimiter", delimiter)
+    q.Set("max-keys", strconv.Itoa(maxKeys))
+    if prefix != "" { q.Set("prefix", prefix) }
+    if startAfter != "" { q.Set("start-after", startAfter) }
+
+    u := *p.origin
+    u.Path = "/" + p.cfg.Bucket
+    u.RawPath = "/" + url.PathEscape(p.cfg.Bucket)
+    u.RawQuery = q.Encode()
+
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+    if err != nil { return nil, err }
+
+    resp, err := p.signAndDo(ctx, req)
+    if err != nil { return nil, err }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        b, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("list failed: %s %s", resp.Status, strings.TrimSpace(string(b)))
+    }
+    b, err := io.ReadAll(resp.Body)
+    if err != nil { return nil, err }
+
+    var lb listBucketResultV2
+    if err := xml.Unmarshal(b, &lb); err != nil { return nil, err }
+    return &lb, nil
+}
+func parseExcludes(r *http.Request) []string {
+    vals := r.URL.Query()["exclude"]
+    if len(vals) == 0 {
+        // autoriser CSV via ?exclude=_trash/,tmp/
+        if s := r.URL.Query().Get("exclude"); s != "" {
+            vals = strings.Split(s, ",")
+        }
+    }
+    out := make([]string, 0, len(vals))
+    for _, v := range vals {
+        v = strings.TrimSpace(strings.TrimLeft(v, "/"))
+        if v == "" { continue }
+        out = append(out, v)
+    }
+    return out
+}
+func isExcluded(rel string, excludes []string) bool {
+    for _, ex := range excludes {
+        if strings.HasPrefix(rel, ex) { return true }
+    }
+    return false
+}
+
+func (p *proxy) handleListJSON(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet && r.Method != http.MethodHead {
+        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    ctx := r.Context()
+
+    prefix := strings.TrimLeft(r.URL.Query().Get("prefix"), "/") // relatif au bucket root
+    delimiter := r.URL.Query().Get("delimiter")
+    if delimiter == "" { delimiter = "/" }
+
+    // Taille page UI
+    limit := 50
+    if s := r.URL.Query().Get("max"); s != "" {
+        if v, err := strconv.Atoi(s); err == nil && v > 0 { limit = v }
+    }
+
+    // Exclusions (relatives au même 'prefix')
+    excludes := parseExcludes(r)
+
+    // Curseur
+    cur, err := decodeCursor(r.URL.Query().Get("continuationToken"))
+    if err != nil {
+        http.Error(w, "bad continuationToken", http.StatusBadRequest)
+        return
+    }
+    if cur.Phase != "dir" && cur.Phase != "file" { cur.Phase = "dir" }
+
+    items := make([]listItemJSON, 0, limit)
+    next := ffCursor{Phase: cur.Phase, After: cur.After}
+    hasMore := false
+
+    seenDirs := map[string]struct{}{}
+    const maxAttempts = 200
+    attempts := 0
+
+    for len(items) < limit && attempts < maxAttempts {
+        attempts++
+
+        // Phase dir : scanner large (1000) pour voir des CommonPrefixes même si les 1ers éléments sont des fichiers
+        // Phase file : scanner à la taille utile
+        innerMax := 1000
+        if cur.Phase == "file" {
+            innerMax = limit
+            if innerMax > 1000 { innerMax = 1000 }
+        }
+
+        // StartAfter absolu
+        sa := cur.After // RELATIF à 'prefix'
+        if cur.Phase == "dir" && sa != "" {
+            // Sauter tout le sous-arbre "sa/*" : remplace "/" final par '0' (car '0' > '/')
+            if strings.HasSuffix(sa, delimiter) && len(delimiter) == 1 {
+                sa = strings.TrimSuffix(sa, delimiter) + string(delimiter[0]+1)
+            } else {
+                sa = sa + "~" // fallback valable en ASCII
+            }
+        }
+        if prefix != "" && sa != "" { sa = prefix + sa }
+
+        lb, err := p.s3ListPage(ctx, prefix, delimiter, sa, innerMax)
+        if err != nil {
+            http.Error(w, fmt.Sprintf("upstream: %v", err), http.StatusBadGateway)
+            return
+        }
+
+        progress := false
+
+        if cur.Phase == "dir" {
+            // 1) Dossiers
+            for _, cp := range lb.CommonPrefixes {
+                rel := cp.Prefix
+                if prefix != "" && strings.HasPrefix(rel, prefix) {
+                    rel = strings.TrimPrefix(rel, prefix)
+                }
+                if rel == "" || !strings.HasSuffix(rel, "/") { continue }
+                if isExcluded(rel, excludes) { continue }
+
+                if _, ok := seenDirs[cp.Prefix]; ok { continue }
+                seenDirs[cp.Prefix] = struct{}{}
+
+                name := strings.TrimSuffix(rel, "/")
+                if i := strings.LastIndexByte(name, '/'); i >= 0 { name = name[i+1:] }
+
+                items = append(items, listItemJSON{
+                    Type:   "prefix",
+                    Name:   name + "/",
+                    Prefix: cp.Prefix, // absolu (clé complète)
+                })
+                cur.After = rel // RELATIF (ex: "scripts/")
+                progress = true
+                if len(items) >= limit { break }
+            }
+
+            if len(items) >= limit {
+                hasMore = true
+                next = ffCursor{Phase: "dir", After: cur.After}
+                break
+            }
+
+            // 2) Pas de dossier visible : s'il y a des fichiers, avancer et re-essayer en phase "dir"
+            if !progress {
+                if len(lb.Contents) > 0 {
+                    lastKey := lb.Contents[len(lb.Contents)-1].Key
+                    rel := lastKey
+                    if prefix != "" && strings.HasPrefix(rel, prefix) {
+                        rel = strings.TrimPrefix(rel, prefix)
+                    }
+                    // si le fichier est exclu, ce n'est pas grave : on avance quand même la fenêtre
+                    cur.After = rel
+                    continue
+                }
+                // Plus rien -> bascule réelle vers la phase "file"
+                if !lb.IsTruncated {
+                    cur.Phase = "file"
+                    cur.After = ""
+                    continue
+                }
+                // Truncated mais vide → réessaie
+                continue
+            }
+
+            // encore de la place → continue la chasse aux dossiers
+            continue
+        }
+
+        // --- Phase fichiers ---
+        if cur.Phase == "file" {
+            for _, c := range lb.Contents {
+                if strings.HasSuffix(c.Key, "/") && c.Size == 0 { continue } // marker dossier
+                rel := c.Key
+                if prefix != "" && strings.HasPrefix(rel, prefix) {
+                    rel = strings.TrimPrefix(rel, prefix)
+                }
+                if isExcluded(rel, excludes) { continue }
+
+                name := c.Key
+                if i := strings.LastIndexByte(name, '/'); i >= 0 { name = name[i+1:] }
+                t := c.LastModified
+                items = append(items, listItemJSON{
+                    Type:         "content",
+                    Name:         name,
+                    Key:          c.Key,
+                    Size:         c.Size,
+                    LastModified: &t,
+                    ETag:         c.ETag,
+                })
+                cur.After = rel
+                progress = true
+                if len(items) >= limit { break }
+            }
+
+            if len(items) >= limit {
+                hasMore = true
+                next = ffCursor{Phase: "file", After: cur.After}
+                break
+            }
+            if !progress {
+                hasMore = false
+                break
+            }
+            continue
+        }
+    }
+
+    out := listResponseJSON{
+        Prefix:    prefix,
+        Delimiter: delimiter,
+        Items:     items,
+    }
+    if hasMore {
+        out.IsTruncated = true
+        out.NextContinuationToken = encodeCursor(next)
+    } else {
+        out.IsTruncated = false
+    }
+    w.Header().Set("Content-Type", "application/json")
+    _ = json.NewEncoder(w).Encode(out)
+}
+
+
+
 /* ===== Routing & server ===== */
 
 func withCORS(h http.Handler) http.Handler {
@@ -705,6 +1012,7 @@ func (p *proxy) routes() http.Handler {
         mux := http.NewServeMux()
 
         // APIs
+		mux.HandleFunc("/api/list", p.handleListJSON)
         mux.HandleFunc("/api/stats", p.handleStats)
         mux.HandleFunc("/api/rename", p.handleRename)
         mux.HandleFunc("/api/delete-prefix", p.handleDeletePrefix)

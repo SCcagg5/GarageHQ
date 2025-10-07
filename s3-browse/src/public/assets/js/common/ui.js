@@ -34,7 +34,7 @@
     }
   }
 
-  function buildModal({ title = '', message = '', kind = 'alert', defaultValue = '' }) {
+  function buildModal({ title = '', message = '', html = '', kind = 'alert', defaultValue = '' }) {
     const overlay = el('div', 'bb-overlay', '');
     const modal = el('div', 'bb-modal', '');
 
@@ -61,6 +61,10 @@
       input.spellcheck = false;
       input.setAttribute('aria-label', 'Input');
       body.append(msg, input);
+   } else if (html) {
+      const wrap = el('div', 'bb-modal-html', '');
+      wrap.innerHTML = String(html || '');
+      body.append(wrap);
     } else {
       if (looksCode) {
         const pre = el('pre', 'bb-pre', '');
@@ -104,9 +108,9 @@
   }
 
   // ---------- Public API ----------
-  async function alert({ title = '', message = '' }) {
+  async function alert({ title = '', message = '', html = '' }) {
     return new Promise((resolve) => {
-      const { overlay, btnOk, btnClose } = buildModal({ title, message, kind: 'alert' });
+      const { overlay, btnOk, btnClose } = buildModal({ title, message, html, kind: 'alert' });
 
       function close() { cleanup(overlay); resolve(); }
       btnOk.addEventListener('click', close);

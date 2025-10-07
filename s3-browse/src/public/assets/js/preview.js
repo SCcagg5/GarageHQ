@@ -25,23 +25,8 @@ function formatBytes(size) {
 }
 
 // Renderers
-function renderCode(code, lang) {
-  const pre = document.createElement('pre');
-  const codeEl = document.createElement('code');
-  codeEl.textContent = code;
-  if (lang) codeEl.className = 'language-' + lang;
-  pre.appendChild(codeEl);
-  hljs.highlightElement(codeEl);
-  return pre;
-}
-function renderMarkdown(md) {
-  const html = marked.parse(md);
-  const wrap = document.createElement('div');
-  wrap.className = 'markdown-body';
-  wrap.innerHTML = html;
-  wrap.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
-  return wrap;
-}
+const renderCode = BB.render.renderCode;
+const renderMarkdown = BB.render.renderMarkdown;
 function renderImage(url) { const img = document.createElement('img'); img.src = url; img.alt = ''; img.loading = 'lazy'; return img; }
 function renderVideo(url) { const v = document.createElement('video'); v.src = url; v.controls = true; v.style.maxWidth = '100%'; return v; }
 function renderAudio(url) { const a = document.createElement('audio'); a.src = url; a.controls = true; a.style.width = '100%'; return a; }
@@ -104,7 +89,7 @@ document.getElementById('pv-rename').addEventListener('click', async () => {
     await render();
   }
 });
-document.getElementById('pv-details').addEventListener('click', () => BB.actions.showFileDetails(currentKey()));
+document.getElementById('pv-details').addEventListener('click', () => BB.actions.showMetadata(currentKey()));
 document.getElementById('pv-delete').addEventListener('click', async () => {
   const result = await BB.actions.deleteObject(currentKey());
   if (result) history.back();
