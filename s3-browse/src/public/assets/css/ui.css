@@ -65,7 +65,7 @@ th.is-right, td.is-right { text-align: right; }
 .bb-modal {
   background: var(--bb-bg);
   color: var(--bb-text);
-  width: min(800px, calc(100vw - 32px));
+  width: min(660px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   border-radius: 12px;
   box-shadow: 0 20px 45px rgba(0,0,0,.18);
@@ -78,7 +78,6 @@ th.is-right, td.is-right { text-align: right; }
   padding: 12px 16px; border-bottom: 1px solid var(--bb-border);
 }
 .bb-modal-title { font-weight: 600; font-size: 16px; }
-.bb-modal-x { font-size: 18px; }
 
 .bb-modal-body {
   padding: 16px; overflow: auto;
@@ -147,7 +146,7 @@ th.is-right, td.is-right { text-align: right; }
 }
 
 .bb-details-actions { display: flex; gap: 8px; margin-top: 6px; }
-.bb-details-subtitle { margin: 2px 0 0; font-size: 0.95rem; color: var(--bb-muted); }
+.bb-details-subtitle { margin: 2px 0 0; font-size: 0.95rem; }
 .meta-pre { max-height: 40vh; overflow: auto; }
 @media (max-width: 600px) {
   .kv-row { grid-template-columns: 120px 1fr; }
@@ -155,4 +154,15 @@ th.is-right, td.is-right { text-align: right; }
 
 .small-icon {
   font-size: 1.25em !important;
+}
+
+.bb-modal-x {
+    position: relative;
+    float: right;
+    left: 15px;
+    top: -15px;
+}
+
+.bb-modal-x:hover {
+  color: red;
 }

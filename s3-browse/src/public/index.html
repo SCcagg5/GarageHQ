@@ -203,10 +203,10 @@
                         </span>
                         <div class="bb-menu-popover">
                           <div class="bb-menu-list">
+                            <div class="bb-menu-item" @click="onRowMetadata(props.row)"><i class="mdi mdi-information-outline"></i> Détails</div>
                             <div class="bb-menu-item" @click="onRowDownload(props.row)"><i class="mdi mdi-download"></i> Télécharger</div>
                             <div class="bb-menu-item" @click="onRowCopy(props.row)"><i class="mdi mdi-content-copy"></i> Copier</div>
                             <div class="bb-menu-item" @click="onRowRename(props.row)"><i class="mdi mdi-rename-outline"></i> Renommer</div>
-                            <div class="bb-menu-item" @click="onRowMetadata(props.row)"><i class="mdi mdi-information-outline"></i> Détails</div>
                             <div class="bb-menu-item danger" @click="onRowDelete(props.row)"><i class="mdi mdi-delete-outline"></i> Supprimer</div>
                           </div>
                         </div>

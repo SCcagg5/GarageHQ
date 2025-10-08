@@ -18,16 +18,14 @@
   function getUI() { return (BB.ui ? BB.ui : nativeUI()); }
 
   const labels = {
-    renameTitle: 'Renommer',
-    renamePrompt: 'Nouveau nom :',
-    deleteTitle: 'Supprimer',
+    renameTitle: 'Rename',
+    deleteTitle: 'Delete',
     deletePrompt: 'Supprimer ce fichier ?',
-    metaTitle: 'Détails — fichier',
     folderDeletePrompt: 'Supprimer ce dossier et tout son contenu ?',
-    deleteOk: 'Supprimé.',
-    renameOk: 'Renommé.',
+    deleteOk: 'Deleted.',
+    renameOk: 'Renamed.',
     moveTrashOk: 'Déplacé dans la corbeille.',
-    deleteDenied: 'Suppression non autorisée par le proxy (DELETE 405).',
+    unauthorized: 'Unauthorized',
     copyDenied: 'Copie refusée (PUT) / proxy.'
   };
 
@@ -108,15 +106,17 @@
             </a>
           </div>
           <div class="bb-details-grid">
-            <div class="kv-row"><div class="kv-k">Taille</div><div class="kv-v">${formatBytes(size)} <span class="kv-muted">(${group3(size)} octets)</span></div></div>
-            <div class="kv-row"><div class="kv-k">Dernière modification</div><div class="kv-v">${escapeHTML(lastStr)}<span class="kv-muted">(${formatDateTime_utc(lastMod)})</span></div></div>
             <div class="kv-row"><div class="kv-k">Type</div><div class="kv-v">${escapeHTML(type || '—')}</div></div>
+            <div class="kv-row"><div class="kv-k">Size</div><div class="kv-v">${formatBytes(size)} <span class="kv-muted">(${group3(size)} octets)</span></div></div>
+            <div class="kv-row"><div class="kv-k">Last modification</div><div class="kv-v">${escapeHTML(lastStr)}<span class="kv-muted">(${formatDateTime_utc(lastMod)})</span></div></div>
+            
           </div>
-          <h4 class="bb-details-subtitle">Metadata</h4>
-          ${metaHTML}
+          <div style='font-size: 0.8rem;'>
+            ${metaHTML}
+          </div>
         </div>
       `;
-      await ui.alert({ title: labels.metaTitle, html });
+      await ui.alert({html: html });
     } catch (e) {
       await ui.alert({ title: labels.metaTitle, message: String(e) });
     }
@@ -178,47 +178,132 @@
   // }
 
   async function showPrefixDetails(prefixAbs) {
-    const ui = getUI();
-    try {
-      const stat = await BB.api.stats(prefixAbs);
-      // L’API renvoie des champs en minuscules/camelCase
-      const bt = stat.byType || {};
-      const norm = (a)=>({ count: (a && a.count) || 0, bytes: (a && a.bytes) || 0 });
-      const img = norm(bt.image), vid = norm(bt.video), aud = norm(bt.audio);
-      const doc = norm(bt.doc),    arc = norm(bt.archive), code = norm(bt.code), oth = norm(bt.other);
+  const ui = getUI();
+  try {
+    const stat = await BB.api.stats(prefixAbs);
 
-      // Top dossiers (tri client)
-      const folders = Object.entries(stat.byFolder || {}).map(([name, a]) => [name, norm(a)]);
-      folders.sort((a,b)=> (b[1].bytes - a[1].bytes) || a[0].localeCompare(b[0]));
-      const topN = folders.slice(0, 10);
+    const group3 = n => (n < 0 ? '-' : '') + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '&nbsp;');
+    const prefix = ensurePrefix(prefixAbs || '');
+    const icon = 'folder-outline';
+    const folders_name = prefix.split('/');
+    const name = folders_name[folders_name.length - 2];
+    const name_prefix = folders_name.slice(0, folders_name.length - 2).join('/') + '/';
+    console.log(name_prefix, name);
 
-      const lines = [
-        `Préfixe: ${prefixAbs || '/'}`,
-        `Objets: ${stat.count}`,
-        `Taille totale: ${fmtBytes(stat.totalBytes)} (${stat.totalBytes} octets)`,
-        `Plus ancien: ${stat.oldest ? fmtDate(stat.oldest) : '—'}`,
-        `Plus récent: ${stat.newest ? fmtDate(stat.newest) : '—'}`,
-        '',
-        '— Par type —',
-        `images: ${img.count} — ${fmtBytes(img.bytes)}`,
-        `vidéos: ${vid.count} — ${fmtBytes(vid.bytes)}`,
-        `audios: ${aud.count} — ${fmtBytes(aud.bytes)}`,
-        `documents: ${doc.count} — ${fmtBytes(doc.bytes)}`,
-        `archives: ${arc.count} — ${fmtBytes(arc.bytes)}`,
-        `code: ${code.count} — ${fmtBytes(code.bytes)}`,
-        `autres: ${oth.count} — ${fmtBytes(oth.bytes)}`,
-        '',
-        '— Dossiers les plus volumineux —',
-        ...(topN.length ? topN.map(([name,a],i)=> `${String(i+1).padStart(2,' ')}. ${name}  ${fmtBytes(a.bytes)}  (${a.count} objets)`)
-                        : ['(aucun sous-dossier)']),
-        '',
-        `Calculé en ${stat.tookMs} ms`
-      ];
-      await ui.alert({ title: `${labels.detailsTitle} — dossier`, message: lines.join('\n') });
-    } catch (e) {
-      await ui.alert({ title: labels.detailsTitle, message: String(e) });
-    }
+    // Dates
+    const oldestAbs = stat.oldest ? fmtDate(stat.oldest) : '—';
+    const newestAbs = stat.newest ? fmtDate(stat.newest) : '—';
+    const oldestRel = stat.oldest
+      ? (window.moment ? moment(new Date(stat.oldest)).fromNow() : new Date(stat.oldest).toLocaleString())
+      : '—';
+    const newestRel = stat.newest
+      ? (window.moment ? moment(new Date(stat.newest)).fromNow() : new Date(stat.newest).toLocaleString())
+      : '—';
+
+    // Normalisation
+    const norm = a => ({ count: (a && a.count) || 0, bytes: (a && a.bytes) || 0 });
+    const totalBytes = stat.totalBytes || 0;
+
+    // --- Types dynamiques triés par taille décroissante ---
+    const bt = stat.byType || {};
+    const labelMap = { image:'Image', video:'Vidéo', audio:'audio', doc:'Document', archive:'Archive', code:'Code', other:'Other' };
+    const pl = (s, n) => s + (n > 1 ? 's' : '');
+
+    const typeLine = (labelSing, obj) => {
+      if (!obj.count) return '';
+      let pct = totalBytes ? (obj.bytes * 100 / totalBytes) : 0;
+      let pctStr = pct > 0.01 ? pct.toFixed(2) : (pct > 0 ? '&lt; 0.01' : '0');
+      return `
+        <div class="kv-row">
+          <div class="kv-k">&nbsp;${pl(labelSing, obj.count)}</div>
+          <div class="kv-v">
+            ${fmtBytes(obj.bytes)}
+            <span class="kv-muted">(${group3(obj.count)} objet${obj.count>1?'s':''}, ${pctStr}% of total size</span>
+          </div>
+        </div>`;
+    };
+
+    const typesOrdered = Object.entries(bt)
+      .map(([k, v]) => [labelMap[k] || k, norm(v)])
+      .filter(([, o]) => o.count > 0)
+      .sort((a, b) =>
+        (b[1].bytes - a[1].bytes) ||
+        (b[1].count - a[1].count) ||
+        a[0].localeCompare(b[0])
+      );
+
+    const typesHTML = typesOrdered.map(([label, o]) => typeLine(label, o)).join('');
+
+    // --- Top sous-dossiers (tri poids -> nom) ---
+    const folders = Object.entries(stat.byFolder || {}).map(([name, a]) => [name, norm(a)]);
+    folders.sort((a, b) => (b[1].bytes - a[1].bytes) || a[0].localeCompare(b[0]));
+    const topN = folders.slice(0, 10);
+    const topRows = topN.map(([name, a]) => {
+      let pct = totalBytes ? (a.bytes * 100 / totalBytes) : 0;
+      let pctStr = pct > 0.01 ? pct.toFixed(2) : (pct > 0 ? '&lt; 0.01' : '0');
+      const href = `#${encodeURIComponent(ensurePrefix(prefix + (name || '')))}`;
+      return `
+        <div class="kv-row">
+          <div class="kv-k">
+            <a class="bb-topfolder-name mono" href="${href}" title="Ouvrir ${escapeHTML(name)}/">
+              &nbsp;${escapeHTML(name || '(racine)')}
+            </a>
+          </div>
+          <div class="kv-v">
+            ${fmtBytes(a.bytes)}
+            <span class="kv-muted">(${group3(a.count)} objet${a.count>1?'s':''}, ${pctStr}% of total size</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const browseHref = `#${encodeURIComponent(prefix)}`;
+    const copyValue = prefix.replace(/'/g, "\\'"); // pour l'attribut onclick
+
+    const html = `
+      <div class="bb-details bb-details--prefix">
+        <div class="bb-details-head">
+          <i class="mdi mdi-${icon}"></i> 
+          <div class="bb-details-titles"> 
+            <div class="bb-details-name" title="${escapeHTML(name)}">
+                <div class="bb-details-prefix" title="${escapeHTML(name_prefix)}">${name_prefix ? escapeHTML(name_prefix) : ''}
+                </div>
+                ${escapeHTML(name) + '/'}
+              </div>
+          </div> 
+          <a class="icon-btn" title="Download" rel="noopener" href="${escapeHTML(browseHref)}" download="${escapeHTML(name)}"> 
+            <i class="mdi mdi-download small-icon"></i> 
+          </a> 
+        </div>
+         
+        <div class="bb-details-body">
+          <div class="bb-section bb-kv">
+            <div class="kv-row"><div class="kv-k">Objects</div><div class="kv-v">${group3(stat.count)}</div></div>
+            <div class="kv-row"><div class="kv-k">Size</div><div class="kv-v">${fmtBytes(stat.totalBytes)} <span class="kv-muted">(${group3(stat.totalBytes)} octets)</span></div></div>
+            <div class="kv-row"><div class="kv-k">First interaction</div><div class="kv-v">${escapeHTML(newestRel)} <span class="kv-muted">(${escapeHTML(newestAbs)})</span></div></div>
+            <div class="kv-row"><div class="kv-k">Last interaction</div><div class="kv-v">${escapeHTML(oldestRel)} <span class="kv-muted">(${escapeHTML(oldestAbs)})</span></div></div>
+            
+            <h4 class="bb-details-subtitle" style="margin-top:10px">Files:</h4>
+            <div class="bb-type-wrap">
+              ${typesHTML || `<div class="kv-muted">&nbsp;&nbsp;&nbsp;(aucun type détecté)</div>`}
+            </div>
+            
+            <h4 class="bb-details-subtitle" style="margin-top:10px">Folders</h4>
+            <div class="bb-toplist">
+              ${topRows || `<div class="kv-muted">&nbsp;&nbsp;&nbsp;(no sub-folder)</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await ui.alert({ html: html });
+  } catch (e) {
+    await ui.alert({ title: labels.detailsTitle, message: String(e) });
   }
+}
+
+
+
 
   // ----- DOSSIER (prefix) : copier / renommer / supprimer -----
   async function renamePrefix(prefixAbs) {
@@ -226,7 +311,7 @@
     const p = ensurePrefix(prefixAbs);
     const last = p.split('/').filter(Boolean).pop() || '';
     const parent = p.slice(0, p.length - last.length - 1); // garde le slash final
-    const newName = await ui.prompt({ title: labels.renameTitle, message: labels.renamePrompt, defaultValue: last || 'nouveau-dossier' });
+    const newName = await ui.prompt({ title: labels.renameTitle, message: labels.renamePrompt, defaultValue: last || 'new-folder' });
     if (!newName || newName === last) return false;
     const dst = ensurePrefix(parent + newName);
     try {
@@ -244,7 +329,7 @@
     const src = ensurePrefix(prefixAbs);
     const last = src.split('/').filter(Boolean).pop() || '';
     const parent = src.slice(0, src.length - last.length - 1);
-    const newName = await ui.prompt({ title: 'Copier le dossier', message: 'Nouveau nom :', defaultValue: last + '-copy' });
+    const newName = await ui.prompt({ title: `${labels.deleteTitle} ${last}`, message: '', defaultValue: last + '-copy' });
     if (!newName) return false;
     const dst = ensurePrefix(parent + '/' + newName);
 
@@ -302,7 +387,7 @@
         const ok = await BB.api.del(absKey);
         if (!ok) await moveToTrash(absKey);
       } catch (ee) {
-        await ui.alert({ title: labels.renameTitle, message: String(ee||e||labels.copyDenied) });
+        await ui.alert({ title: labels.renameTitle, message: String(ee||e||labels.unauthorized) });
         return false;
       }
     }
@@ -314,7 +399,7 @@
     const ui = getUI();
     const cur = absKey.split('/').pop() || absKey;
     const base = dirOf(absKey);
-    const newName = await ui.prompt({ title: 'Copier', message: `Nouveau nom dans ${base}`, defaultValue: cur });
+    const newName = await ui.prompt({ title: `Duplicate ${cur}`, message: ``, defaultValue: cur });
     if (!newName || newName === cur) return false;
     const dst = base + newName;
     try {
@@ -322,7 +407,7 @@
       ui.toast('Copie effectuée.');
       return dst;
     } catch (e) {
-      await ui.alert({ title: 'Copier', message: String(e || labels.copyDenied) });
+      await ui.alert({ title: `Duplicate ${cur}`, message: String(e || labels.unauthorized) });
       return false;
     }
   }

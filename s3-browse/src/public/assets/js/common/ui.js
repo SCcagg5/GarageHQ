@@ -38,13 +38,16 @@
     const overlay = el('div', 'bb-overlay', '');
     const modal = el('div', 'bb-modal', '');
 
-    // Header
-    const header = el('div', 'bb-modal-header', '');
-    const hTitle = el('div', 'bb-modal-title', '');
-    hTitle.textContent = title || '';
-    const btnClose = el('button', 'bb-btn bb-btn-ghost bb-modal-x', '<span aria-hidden="true">&times;</span>');
+    const btnClose = el('button', 'bb-btn bb-btn-ghost bb-modal-x', '<i class="mdi mdi-close"></i>');
     btnClose.setAttribute('aria-label', 'Close');
-    header.append(hTitle, btnClose);
+    var header = void 0;
+    if (title != '' || html == '') {
+      header = el('div', 'bb-modal-header', '');
+      const hTitle = el('div', 'bb-modal-title', '');
+      hTitle.textContent = title || '';
+      header.append(hTitle, btnClose);
+    }
+    
 
     // Body
     const body = el('div', 'bb-modal-body', '');
@@ -64,6 +67,9 @@
    } else if (html) {
       const wrap = el('div', 'bb-modal-html', '');
       wrap.innerHTML = String(html || '');
+      if (title == '' && html != '') {
+        wrap.prepend(btnClose);
+      }
       body.append(wrap);
     } else {
       if (looksCode) {
@@ -81,13 +87,13 @@
     const footer = el('div', 'bb-modal-actions', '');
     const btnCancel = el('button', 'bb-btn', 'Annuler');
     const btnOk = el('button', 'bb-btn bb-btn-primary', kind === 'confirm' ? 'OK' : (kind === 'prompt' ? 'OK' : 'OK'));
-    if (kind === 'alert') {
-      footer.append(btnOk);
-    } else {
+    if (kind != 'alert') {
       footer.append(btnCancel, btnOk);
     }
-
-    modal.append(header, body, footer);
+    if (title != '' || html == '') {
+      modal.append(header);
+    }
+    modal.append(body, footer);
     overlay.append(modal);
     return { overlay, modal, header, body, footer, btnCancel, btnOk, btnClose };
   }
@@ -113,13 +119,11 @@
       const { overlay, btnOk, btnClose } = buildModal({ title, message, html, kind: 'alert' });
 
       function close() { cleanup(overlay); resolve(); }
-      btnOk.addEventListener('click', close);
       btnClose.addEventListener('click', close);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
       overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 
       attachAndShow(overlay);
-      btnOk.focus();
     });
   }
 
